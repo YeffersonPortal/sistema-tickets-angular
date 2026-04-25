@@ -1,1 +1,29 @@
-<p>welcome works!</p>
+<section class="welcome-page">
+  <div class="hero-card">
+    <span class="eyebrow">SGT</span>
+    <h1>Sistema de gestion de Tickets</h1>
+    <p>
+      Gestiona y monitorea todos tus tickets de soporte de manera eficiente y
+      profesional.
+    </p>
+
+    <div class="hero-actions">
+      <a mat-flat-button routerLink="/login">
+        <mat-icon>login</mat-icon>
+        Iniciar Sesion
+      </a>
+    </div>
+  </div>
+
+  <div class="features-grid">
+    @for (feature of features; track feature.title) {
+      <mat-card class="feature-card" appearance="outlined">
+        <mat-card-content>
+          <mat-icon>{{ feature.icon }}</mat-icon>
+          <h2>{{ feature.title }}</h2>
+          <p>{{ feature.description }}</p>
+        </mat-card-content>
+      </mat-card>
+    }
+  </div>
+</section>
