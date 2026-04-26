@@ -1,0 +1,75 @@
+/* Fondo moderno con degradado azul oscuro a claro */
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+  font-family: 'Roboto', sans-serif;
+}
+
+/* Tarjeta principal */
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 30px 20px;
+  border-radius: 16px; /* Bordes bien redondeados */
+  background-color: rgba(255, 255, 255, 0.95); /* Ligeramente transparente */
+}
+
+/* Centrar la cabecera */
+.header-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 25px;
+}
+
+/* Círculo con el ícono corporativo */
+.logo-circle {
+  background-color: #3f51b5; /* Azul primario de Material */
+  color: white;
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 15px;
+  box-shadow: 0 4px 10px rgba(63, 81, 181, 0.4);
+}
+
+.logo-icon {
+  font-size: 40px;
+  width: 40px;
+  height: 40px;
+}
+
+.main-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 5px;
+}
+
+/* Espaciado del formulario */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 5px; 
+}
+
+.full-width {
+  width: 100%;
+}
+
+.btn-login {
+  width: 100%;
+  padding: 25px 0;
+  font-size: 16px;
+  font-weight: 500;
+  border-radius: 8px;
+  margin-top: 10px;
+  letter-spacing: 1px;
+}
