@@ -1,1 +1,248 @@
-<p>monitor works!</p>
+<section class="monitor-page">
+  <mat-card class="monitor-hero">
+    <div class="hero-copy">
+      <p class="hero-eyebrow">Monitoreo</p>
+      <h1>Supervision operativa de tickets</h1>
+      <p>
+        Revisa el flujo de soporte, busca por responsable y valida cierres o
+        reasignaciones desde una sola pantalla.
+      </p>
+    </div>
+
+    <div class="hero-actions">
+      <mat-form-field appearance="outline">
+        <mat-label>Buscar ticket</mat-label>
+        <input
+          matInput
+          [(ngModel)]="searchTerm"
+          (ngModelChange)="onSearchChange()"
+          placeholder="Codigo, asunto o usuario"
+        />
+        <mat-icon matSuffix>search</mat-icon>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Usuario responsable</mat-label>
+        <input
+          matInput
+          [(ngModel)]="responsableTerm"
+          (ngModelChange)="onSearchChange()"
+          placeholder="Usuario o tecnico"
+        />
+        <mat-icon matSuffix>person_search</mat-icon>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Prioridad</mat-label>
+        <mat-select [(ngModel)]="selectedPriority" (ngModelChange)="onSearchChange()">
+          <mat-option value="">Todas</mat-option>
+          @for (item of priorities; track item) {
+            <mat-option [value]="item">{{ getPriorityLabel(item) }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Fecha desde</mat-label>
+        <input
+          matInput
+          [matDatepicker]="monitorDesde"
+          [(ngModel)]="fechaDesde"
+          (ngModelChange)="onSearchChange()"
+          readonly
+        />
+        <mat-datepicker-toggle matSuffix [for]="monitorDesde"></mat-datepicker-toggle>
+        <mat-datepicker #monitorDesde></mat-datepicker>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Fecha hasta</mat-label>
+        <input
+          matInput
+          [matDatepicker]="monitorHasta"
+          [(ngModel)]="fechaHasta"
+          (ngModelChange)="onSearchChange()"
+          readonly
+        />
+        <mat-datepicker-toggle matSuffix [for]="monitorHasta"></mat-datepicker-toggle>
+        <mat-datepicker #monitorHasta></mat-datepicker>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Ordenar por</mat-label>
+        <mat-select [(ngModel)]="sortBy" (ngModelChange)="onSearchChange()">
+          @for (option of sortOptions; track option.value) {
+            <mat-option [value]="option.value">{{ option.label }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <button mat-stroked-button type="button" (click)="clearFilters()">
+        Limpiar
+      </button>
+    </div>
+  </mat-card>
+
+  <div class="status-strip">
+    @for (status of statuses; track status.key) {
+      <button
+        class="status-pill"
+        type="button"
+        [class.active]="selectedStatus === status.key"
+        (click)="setStatus(status.key)"
+      >
+        <span>{{ status.label }}</span>
+        <strong>{{ getCount(status.key) }}</strong>
+      </button>
+    }
+  </div>
+
+  <div class="monitor-grid">
+    <mat-card class="monitor-list-card">
+      <div class="section-head">
+        <div>
+          <h2>Tickets monitoreados</h2>
+          <p>{{ tickets.length }} registros visibles</p>
+        </div>
+      </div>
+
+      @if (tickets.length === 0) {
+        <div class="empty-state">
+          <mat-icon>monitoring</mat-icon>
+          <h3>No hay tickets para este monitoreo</h3>
+          <p>Ajusta filtros o crea tickets desde la vista de gestion.</p>
+        </div>
+      } @else {
+        <div class="table-shell">
+          <div class="table-head">
+            <span>Nro.</span>
+            <span>Codigo</span>
+            <span>Usuario</span>
+            <span>Asunto</span>
+            <span>Prioridad</span>
+            <span>Estado</span>
+            <span>Acciones</span>
+          </div>
+
+          @for (ticket of tickets; track ticket.id) {
+            <div class="table-row">
+              <span>{{ ticket.nro || ticket.id }}</span>
+              <span>TCK-{{ ticket.id }}</span>
+              <span>{{ ticket.usuario }}</span>
+              <span>{{ ticket.asunto }}</span>
+              <span>{{ getPriorityLabel(ticket.prioridad) }}</span>
+              <span class="state-chip">{{ getStatusLabel(ticket.status) }}</span>
+              <div class="row-actions">
+                <button mat-icon-button type="button" (click)="openTicket(ticket)">
+                  <mat-icon>visibility</mat-icon>
+                </button>
+                <button mat-icon-button type="button" (click)="markDeleted(ticket)">
+                  <mat-icon>block</mat-icon>
+                </button>
+              </div>
+            </div>
+          }
+        </div>
+      }
+    </mat-card>
+
+    <mat-card class="monitor-detail-card" [class.is-empty]="!selectedTicket">
+      @if (selectedTicket) {
+        <div class="detail-head">
+          <div>
+            <p class="detail-label">Detalle del monitoreo</p>
+            <h2>{{ selectedTicket.asunto }}</h2>
+          </div>
+        </div>
+
+        <div class="detail-grid">
+          <div>
+            <span>Estado</span>
+            <strong>{{ getStatusLabel(selectedTicket.status) }}</strong>
+          </div>
+          <div>
+            <span>Codigo</span>
+            <strong>TCK-{{ selectedTicket.id }}</strong>
+          </div>
+          <div>
+            <span>Usuario</span>
+            <strong>{{ selectedTicket.usuario }}</strong>
+          </div>
+          <div>
+            <span>Tecnico</span>
+            <strong>{{ selectedTicket.tecnico || 'Sin asignar' }}</strong>
+          </div>
+          <div>
+            <span>Area</span>
+            <strong>{{ selectedTicket.area }}</strong>
+          </div>
+          <div>
+            <span>Prioridad</span>
+            <strong>{{ getPriorityLabel(selectedTicket.prioridad) }}</strong>
+          </div>
+          <div>
+            <span>Fecha de inicio</span>
+            <strong>{{ selectedTicket.fi || '-' }}</strong>
+          </div>
+        </div>
+
+        <mat-divider></mat-divider>
+
+        <div class="detail-block">
+          <span class="detail-label">Requerimiento</span>
+          <p>{{ selectedTicket.requerimiento }}</p>
+        </div>
+
+        <div class="detail-block">
+          <span class="detail-label">Descripcion</span>
+          <p>{{ selectedTicket.descripcion || 'Sin descripcion registrada.' }}</p>
+        </div>
+
+        <div class="detail-block">
+          <span class="detail-label">Reasignar ticket</span>
+          <div class="assign-row">
+            <mat-form-field appearance="outline">
+              <mat-label>Tecnico de soporte</mat-label>
+              <mat-select [(ngModel)]="selectedAgent">
+                <mat-option value="">Seleccionar</mat-option>
+                @for (agent of supportAgents; track agent) {
+                  <mat-option [value]="agent">{{ agent }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <button mat-flat-button type="button" (click)="reassignSelected()">
+              Reasignar
+            </button>
+          </div>
+        </div>
+
+        <div class="detail-actions">
+          <button mat-stroked-button type="button" (click)="rejectSolution()">
+            Anular solucion
+          </button>
+          <button mat-flat-button type="button" (click)="acceptSolution()">
+            Aceptar solucion
+          </button>
+        </div>
+
+        <div class="history-list">
+          <span class="detail-label">Historial</span>
+          @for (item of selectedTicket.historial; track item.fecha + item.accion) {
+            <div class="history-item">
+              <strong>{{ item.accion }}</strong>
+              <span>{{ item.fecha }}</span>
+              <p>{{ item.mensaje }}</p>
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="empty-state">
+          <mat-icon>preview</mat-icon>
+          <h3>Selecciona un ticket</h3>
+          <p>Desde aqui puedes reasignar y validar la atencion del soporte.</p>
+        </div>
+      }
+    </mat-card>
+  </div>
+</section>
