@@ -1,0 +1,247 @@
+.layout-shell {
+  height: 100vh;
+  background: #f3f6fb;
+}
+
+.layout-sidebar {
+  width: 260px;
+  padding: 24px 16px;
+  border-right: 1px solid rgba(148, 163, 184, 0.18);
+  background:
+    radial-gradient(circle at top, rgba(56, 189, 248, 0.18), transparent 34%),
+    linear-gradient(180deg, #0f172a 0%, #13253e 52%, #17304d 100%);
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 24px;
+}
+
+.brand-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.brand-subtitle {
+  font-size: 0.85rem;
+  color: rgba(226, 232, 240, 0.76);
+}
+
+.nav-links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nav-links a {
+  justify-content: flex-start;
+  border-radius: 12px;
+  padding: 10px 14px;
+  color: #dbeafe;
+}
+
+.nav-links a.active-link {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.layout-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  box-shadow: 0 2px 12px rgba(18, 52, 77, 0.12);
+}
+
+.toolbar-spacer {
+  flex: 1;
+}
+
+.toolbar-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+}
+
+.user-name {
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.user-meta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.user-meta small {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.76rem;
+}
+
+.notification-button {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  color: inherit;
+  cursor: pointer;
+}
+
+.notification-badge {
+  position: absolute;
+  top: -4px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.toolbar-user button {
+  border-radius: 999px;
+}
+
+.notifications-panel {
+  position: absolute;
+  top: 72px;
+  right: 24px;
+  width: min(360px, calc(100vw - 48px));
+  max-height: 420px;
+  overflow: auto;
+  padding: 18px;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.16);
+  z-index: 4;
+}
+
+.notification-toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  width: min(360px, calc(100vw - 32px));
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 14px;
+  align-items: start;
+  padding: 16px 18px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+  color: #fff;
+  box-shadow: 0 22px 40px rgba(15, 23, 42, 0.28);
+  z-index: 5;
+}
+
+.notification-toast__icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.notification-toast__content strong,
+.notification-toast__content p,
+.notification-toast__content span {
+  display: block;
+}
+
+.notification-toast__content p {
+  margin: 4px 0 0;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.notification-toast__content span {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.notification-toast__close {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  cursor: pointer;
+}
+
+.notifications-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.notifications-head span {
+  display: block;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.notifications-empty {
+  margin: 18px 0 0;
+  color: #64748b;
+}
+
+.notifications-list {
+  margin-top: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.notification-item {
+  padding: 14px;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+
+.notification-item.is-new {
+  background: #eff6ff;
+}
+
+.notification-item strong,
+.notification-item span,
+.notification-item p {
+  display: block;
+}
+
+.notification-item span {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.notification-item p {
+  margin: 8px 0 0;
+  color: #334155;
+}
+
+.layout-content {
+  padding: 24px;
+}
+
+@media (max-width: 960px) {
+  .notification-toast {
+    right: 16px;
+    bottom: 16px;
+  }
+}

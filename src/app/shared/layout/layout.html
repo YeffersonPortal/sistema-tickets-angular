@@ -1,0 +1,99 @@
+<mat-sidenav-container class="layout-shell">
+  <mat-sidenav class="layout-sidebar" mode="side" opened>
+    <div class="brand">
+      <span class="brand-title">Sistema de Tickets</span>
+      <span class="brand-subtitle">{{ currentUserRoleLabel }}</span>
+    </div>
+
+    <nav class="nav-links">
+      @for (item of navItems; track item.route) {
+        @if (canAccess(item.route)) {
+          <a
+            mat-button
+            [routerLink]="item.route"
+            routerLinkActive="active-link"
+            [routerLinkActiveOptions]="{ exact: true }"
+          >
+            {{ item.label }}
+          </a>
+        }
+      }
+    </nav>
+  </mat-sidenav>
+
+  <mat-sidenav-content>
+    <mat-toolbar class="layout-header" color="primary">
+      <span>Gestion de Soporte</span>
+      <span class="toolbar-spacer"></span>
+      <div class="toolbar-user">
+        <button class="notification-button" type="button" (click)="toggleNotifications()">
+          <mat-icon>notifications</mat-icon>
+          @if (unreadNotifications > 0) {
+            <span class="notification-badge">{{ unreadNotifications }}</span>
+          }
+        </button>
+        <div class="user-meta">
+          <span class="user-name">{{ currentUserName }}</span>
+          <small>{{ currentUserRoleLabel }}</small>
+        </div>
+        <button mat-button type="button" (click)="logout()">
+          <mat-icon>logout</mat-icon>
+          Cerrar sesion
+        </button>
+      </div>
+    </mat-toolbar>
+
+    @if (showNotifications) {
+      <div class="notifications-panel">
+        <div class="notifications-head">
+          <div>
+            <strong>Notificaciones</strong>
+            <span>{{ currentNotifications.length }} en total</span>
+          </div>
+          <button mat-button type="button" (click)="markNotificationsAsRead()">
+            Marcar leidas
+          </button>
+        </div>
+
+        @if (currentNotifications.length === 0) {
+          <p class="notifications-empty">No tienes notificaciones por ahora.</p>
+        } @else {
+          <div class="notifications-list">
+            @for (notification of currentNotifications; track notification.id) {
+              <div class="notification-item" [class.is-new]="!notification.read">
+                <strong>{{ notification.title }}</strong>
+                <span>{{ notification.createdAt }}</span>
+                <p>{{ notification.message }}</p>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    }
+
+    @if (toastNotification) {
+      <div class="notification-toast" role="status" aria-live="polite">
+        <div class="notification-toast__icon">
+          <mat-icon>campaign</mat-icon>
+        </div>
+        <div class="notification-toast__content">
+          <strong>{{ toastNotification.title }}</strong>
+          <p>{{ toastNotification.message }}</p>
+          <span>{{ toastNotification.createdAt }}</span>
+        </div>
+        <button
+          class="notification-toast__close"
+          type="button"
+          aria-label="Cerrar notificacion"
+          (click)="dismissToast()"
+        >
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+    }
+
+    <div class="layout-content">
+      <router-outlet></router-outlet>
+    </div>
+  </mat-sidenav-content>
+</mat-sidenav-container>

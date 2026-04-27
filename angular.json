@@ -7,7 +7,7 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "mi-sistema-tickets": {
+    "sistema-tickets-angular": {
       "projectType": "application",
       "schematics": {},
       "root": "",
@@ -55,16 +55,19 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "mi-sistema-tickets:build:production"
+              "buildTarget": "sistema-tickets-angular:build:production"
             },
             "development": {
-              "buildTarget": "mi-sistema-tickets:build:development"
+              "buildTarget": "sistema-tickets-angular:build:development"
             }
           },
           "defaultConfiguration": "development"
         },
         "test": {
-          "builder": "@angular/build:unit-test"
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "tsConfig": "tsconfig.spec.json"
+          }
         }
       }
     }
