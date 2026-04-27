@@ -1,1 +1,347 @@
-<p>tickets works!</p>
+<section class="tickets-page">
+  <mat-card class="tickets-hero">
+    <div class="hero-copy">
+      <p class="hero-eyebrow">SGT</p>
+      <h1>{{ pageTitle }}</h1>
+      <p>{{ pageDescription }}</p>
+    </div>
+
+    <div class="hero-actions">
+      <mat-form-field appearance="outline" class="search-field">
+        <mat-label>Buscar ticket</mat-label>
+        <input
+          matInput
+          [(ngModel)]="searchTerm"
+          (ngModelChange)="onSearchChange()"
+          placeholder="Asunto, usuario o area"
+        />
+        <mat-icon matSuffix>search</mat-icon>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="search-field">
+        <mat-label>Ordenar por</mat-label>
+        <mat-select [(ngModel)]="sortBy" (ngModelChange)="onSortChange()">
+          @for (option of sortOptions; track option.value) {
+            <mat-option [value]="option.value">{{ option.label }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="search-field">
+        <mat-label>Prioridad</mat-label>
+        <mat-select [(ngModel)]="selectedPriority" (ngModelChange)="onSearchChange()">
+          <mat-option value="">Todas</mat-option>
+          @for (item of priorities; track item) {
+            <mat-option [value]="item">{{ getPriorityLabel(item) }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="search-field">
+        <mat-label>Fecha desde</mat-label>
+        <input
+          matInput
+          [matDatepicker]="ticketsDesde"
+          [(ngModel)]="fechaDesde"
+          (ngModelChange)="onSearchChange()"
+          readonly
+        />
+        <mat-datepicker-toggle matSuffix [for]="ticketsDesde"></mat-datepicker-toggle>
+        <mat-datepicker #ticketsDesde></mat-datepicker>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="search-field">
+        <mat-label>Fecha hasta</mat-label>
+        <input
+          matInput
+          [matDatepicker]="ticketsHasta"
+          [(ngModel)]="fechaHasta"
+          (ngModelChange)="onSearchChange()"
+          readonly
+        />
+        <mat-datepicker-toggle matSuffix [for]="ticketsHasta"></mat-datepicker-toggle>
+        <mat-datepicker #ticketsHasta></mat-datepicker>
+      </mat-form-field>
+
+      <button mat-stroked-button type="button" (click)="clearFilters()">
+        Limpiar
+      </button>
+
+      @if (canCreateTickets) {
+        <button mat-flat-button type="button" (click)="toggleCreateForm()">
+          <mat-icon>{{ showCreateForm ? 'close' : 'add' }}</mat-icon>
+          {{ showCreateForm ? 'Cerrar formulario' : 'Nuevo ticket' }}
+        </button>
+      }
+    </div>
+  </mat-card>
+
+  <div class="status-strip">
+    @for (status of statuses; track status.key) {
+      <button
+        class="status-pill"
+        type="button"
+        [class.active]="selectedStatus === status.key"
+        (click)="setStatus(status.key)"
+      >
+        <span>{{ status.label }}</span>
+        <strong>{{ getCount(status.key) }}</strong>
+      </button>
+    }
+  </div>
+
+  @if (successMessage) {
+    <mat-card class="feedback-card">
+      <mat-icon>check_circle</mat-icon>
+      <span>{{ successMessage }}</span>
+    </mat-card>
+  }
+
+  @if (showCreateForm) {
+    <mat-card class="ticket-form-card">
+      <div class="form-header">
+        <div>
+          <h2>Nuevo ticket</h2>
+          <p>Esta version ya usa la estructura real del sistema.</p>
+        </div>
+      </div>
+
+      <div class="ticket-form-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Asunto</mat-label>
+          <input matInput [(ngModel)]="asunto" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Area</mat-label>
+          <mat-select [(ngModel)]="area">
+            @for (item of areas; track item) {
+              <mat-option [value]="item">{{ item }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Categoria de atencion</mat-label>
+          <mat-select [(ngModel)]="tipoServicio">
+            @for (item of serviceTypes; track item) {
+              <mat-option [value]="item">{{ item }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Requerimiento</mat-label>
+          <input matInput [(ngModel)]="requerimiento" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Prioridad</mat-label>
+          <mat-select [(ngModel)]="prioridad">
+            @for (item of priorities; track item) {
+              <mat-option [value]="item">{{ getPriorityLabel(item) }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="form-span-2">
+          <mat-label>Descripcion</mat-label>
+          <textarea matInput rows="4" [(ngModel)]="descripcion"></textarea>
+        </mat-form-field>
+      </div>
+
+      <div class="form-actions">
+        <button mat-stroked-button type="button" (click)="toggleCreateForm()">
+          Cancelar
+        </button>
+        <button mat-flat-button type="button" (click)="crearTicket()">
+          Guardar ticket
+        </button>
+      </div>
+    </mat-card>
+  }
+
+  <div class="tickets-content">
+    <div class="tickets-list">
+      <div class="section-heading">
+        <div>
+          <h2>{{ visibleTicketsLabel }}</h2>
+          <p>{{ tickets.length }} tickets visibles</p>
+        </div>
+      </div>
+
+      @if (tickets.length === 0) {
+        <mat-card class="empty-state">
+          <mat-icon>assignment_late</mat-icon>
+          <h3>No hay tickets en esta vista</h3>
+          <p>Cambia el filtro o crea el primer ticket para empezar.</p>
+        </mat-card>
+      } @else {
+        <div class="ticket-card-list">
+          @for (ticket of tickets; track ticket.id) {
+            <mat-card class="ticket-card">
+              <div class="ticket-card-head">
+                <div>
+                  <span class="ticket-id">{{ ticket.nro || ('TCK-' + ticket.id) }}</span>
+                  <h3>{{ ticket.asunto }}</h3>
+                </div>
+                <span class="ticket-status">{{ getStatusLabel(ticket.status) }}</span>
+              </div>
+
+              <div class="ticket-meta">
+                <span><mat-icon>person</mat-icon>{{ ticket.usuario }}</span>
+                <span><mat-icon>apartment</mat-icon>{{ ticket.area }}</span>
+                <span><mat-icon>flag</mat-icon>{{ getPriorityLabel(ticket.prioridad) }}</span>
+              </div>
+
+              <p class="ticket-description">{{ ticket.descripcion || 'Sin descripcion registrada.' }}</p>
+
+              <div class="ticket-footer">
+                <span>Inicio: {{ ticket.fi || '-' }}</span>
+                <button mat-button type="button" (click)="openDetail(ticket)">
+                  Ver detalle
+                </button>
+              </div>
+            </mat-card>
+          }
+        </div>
+      }
+    </div>
+
+    <mat-card class="ticket-detail" [class.is-empty]="!selectedTicket">
+      @if (selectedTicket) {
+        <div class="detail-head">
+          <div>
+            <p class="detail-label">Detalle del ticket</p>
+            <h2>{{ selectedTicket.asunto }}</h2>
+          </div>
+          <button mat-icon-button type="button" (click)="closeDetail()">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+
+        <div class="detail-grid">
+          <div>
+            <span>Estado</span>
+            <strong>{{ getStatusLabel(selectedTicket.status) }}</strong>
+          </div>
+          <div>
+            <span>Prioridad</span>
+            <strong>{{ getPriorityLabel(selectedTicket.prioridad) }}</strong>
+          </div>
+          <div>
+            <span>Usuario</span>
+            <strong>{{ selectedTicket.usuario }}</strong>
+          </div>
+          <div>
+            <span>Area</span>
+            <strong>{{ selectedTicket.area }}</strong>
+          </div>
+          <div>
+            <span>Tipo de servicio</span>
+            <strong>{{ selectedTicket.tipoServicio }}</strong>
+          </div>
+          <div>
+            <span>Inicio</span>
+            <strong>{{ selectedTicket.fi }}</strong>
+          </div>
+        </div>
+
+        <mat-divider></mat-divider>
+
+        <div class="detail-block">
+          <span class="detail-label">Requerimiento</span>
+          <p>{{ selectedTicket.requerimiento }}</p>
+        </div>
+
+        <div class="detail-block">
+          <span class="detail-label">Descripcion</span>
+          <p>{{ selectedTicket.descripcion || 'Sin descripcion registrada.' }}</p>
+        </div>
+
+        @if (canManageTickets) {
+          <div class="detail-block">
+            <span class="detail-label">Avances de atencion</span>
+            <mat-form-field appearance="outline" class="attention-field">
+              <mat-label>Registrar avance</mat-label>
+              <textarea
+                matInput
+                rows="4"
+                [(ngModel)]="attentionDescription"
+                placeholder="Describe el avance tecnico realizado"
+              ></textarea>
+            </mat-form-field>
+
+            <div class="attention-actions">
+              <button mat-flat-button type="button" (click)="saveAttention()">
+                Guardar avance
+              </button>
+            </div>
+
+            @if (attentionSavedMessage) {
+              <div class="attention-feedback">
+                <mat-icon>check_circle</mat-icon>
+                <span>{{ attentionSavedMessage }}</span>
+              </div>
+            }
+
+            @if (selectedTicket.atencion?.descripcion) {
+              <div class="attention-preview">
+                <span class="detail-label">Ultimo avance guardado</span>
+                <p>{{ selectedTicket.atencion?.descripcion }}</p>
+              </div>
+            }
+          </div>
+
+          <div class="detail-actions">
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="changeStatus(selectedTicket, 'rechazados')"
+            >
+              Rechazar
+            </button>
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="changeStatus(selectedTicket, 'eliminados')"
+            >
+              Eliminar
+            </button>
+            <button
+              mat-flat-button
+              type="button"
+              (click)="changeStatus(selectedTicket, 'cerrados')"
+            >
+              Cerrar ticket
+            </button>
+          </div>
+        } @else if (selectedTicket.atencion?.descripcion) {
+          <div class="attention-preview">
+            <span class="detail-label">Ultimo avance guardado</span>
+            <p>{{ selectedTicket.atencion?.descripcion }}</p>
+          </div>
+        }
+
+        <div class="detail-history">
+          <span class="detail-label">Historial</span>
+          <div class="history-list">
+            @for (item of selectedTicket.historial; track item.fecha + item.accion) {
+              <div class="history-item">
+                <strong>{{ item.accion }}</strong>
+                <span>{{ item.fecha }}</span>
+                <p>{{ item.mensaje }}</p>
+              </div>
+            }
+          </div>
+        </div>
+      } @else {
+        <div class="detail-empty">
+          <mat-icon>preview</mat-icon>
+          <h3>Selecciona un ticket</h3>
+          <p>Desde aqui podremos seguir agregando acciones y modales del prototipo.</p>
+        </div>
+      }
+    </mat-card>
+  </div>
+</section>
