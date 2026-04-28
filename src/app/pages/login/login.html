@@ -1,48 +1,60 @@
-<div class="login-container">
-  <mat-card class="login-card mat-elevation-z8">
-    
-    <mat-card-header class="header-center">
-      <div class="logo-circle">
-        <mat-icon class="logo-icon">support_agent</mat-icon>
+<section class="login-page">
+  <mat-card class="login-card">
+    <mat-card-header>
+      <div class="login-icon">
+        <mat-icon>login</mat-icon>
       </div>
-      <mat-card-title class="main-title">Sicobra SGT</mat-card-title>
-      <mat-card-subtitle>Sistema de Gestión de Tickets</mat-card-subtitle>
+      <mat-card-title>Iniciar Sesion</mat-card-title>
+      <mat-card-subtitle>
+        Ingresa con tu correo institucional para continuar.
+      </mat-card-subtitle>
     </mat-card-header>
 
     <mat-card-content>
-      <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="login-form">
-        
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Correo corporativo</mat-label>
-          <input matInput placeholder="Ej. cgarcia@sicobra.pe" formControlName="correo" type="email">
-          <mat-icon matSuffix>mail</mat-icon>
-          
-          <mat-error *ngIf="loginForm.get('correo')?.hasError('required')">
-            El correo es obligatorio.
-          </mat-error>
-          <mat-error *ngIf="loginForm.get('correo')?.hasError('email')">
-            Debe ser un correo válido (incluir @).
-          </mat-error>
+      <form class="login-form" (ngSubmit)="login()">
+        @if (infoMessage) {
+          <div class="login-banner login-banner-info">
+            <mat-icon>info</mat-icon>
+            <span>{{ infoMessage }}</span>
+          </div>
+        }
+
+        @if (errorMessage) {
+          <div class="login-banner login-banner-error">
+            <mat-icon>error</mat-icon>
+            <span>{{ errorMessage }}</span>
+          </div>
+        }
+
+        <mat-form-field appearance="outline">
+          <mat-label>Usuario</mat-label>
+          <input
+            matInput
+            type="email"
+            [(ngModel)]="usuario"
+            (ngModelChange)="errorMessage = ''"
+            name="usuario"
+            placeholder="usuario@sgt.com"
+            required
+          />
         </mat-form-field>
 
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Contraseña</mat-label>
-          <input matInput type="password" formControlName="password">
-          <mat-icon matSuffix>lock</mat-icon>
-          
-          <mat-error *ngIf="loginForm.get('password')?.hasError('required')">
-            La contraseña es obligatoria.
-          </mat-error>
-          <mat-error *ngIf="loginForm.get('password')?.hasError('minlength')">
-            Debe tener al menos 8 caracteres.
-          </mat-error>
+        <mat-form-field appearance="outline">
+          <mat-label>Contrasena</mat-label>
+          <input
+            matInput
+            type="password"
+            [(ngModel)]="password"
+            (ngModelChange)="errorMessage = ''"
+            name="password"
+            required
+          />
         </mat-form-field>
 
-        <button mat-flat-button color="primary" class="btn-login" type="submit">
-          Iniciar Sesión
+        <button mat-flat-button type="submit" [disabled]="isSubmitting">
+          {{ isSubmitting ? 'Ingresando...' : 'Ingresar' }}
         </button>
       </form>
     </mat-card-content>
-
   </mat-card>
-</div>
+</section>

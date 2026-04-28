@@ -1,6 +1,5 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth-guard';
-import { guestGuard } from './core/guards/guest-guard';
 import { roleGuard } from './core/guards/role-guard';
 import { DashboardComponent } from './pages/dashboard/dashboard';
 import { LoginComponent } from './pages/login/login';
@@ -10,8 +9,8 @@ import { WelcomeComponent } from './pages/welcome/welcome';
 import { LayoutComponent } from './shared/layout/layout';
 
 export const routes: Routes = [
-  { path: '', component: WelcomeComponent, pathMatch: 'full', canActivate: [guestGuard] },
-  { path: 'login', component: LoginComponent, canActivate: [guestGuard] },
+  { path: '', component: WelcomeComponent, pathMatch: 'full' },
+  { path: 'login', component: LoginComponent },
   {
     path: '',
     component: LayoutComponent,

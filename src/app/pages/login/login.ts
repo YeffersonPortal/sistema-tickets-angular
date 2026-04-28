@@ -1,41 +1,78 @@
 import { Component } from '@angular/core';
-import { ReactiveFormsModule, FormGroup, FormControl, Validators } from '@angular/forms'; // <-- Herramientas de validación
+import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { NgIf } from '@angular/common'; // <-- Para mostrar/ocultar los mensajes de error
+import { MatInputModule } from '@angular/material/input';
+import { AuthService } from '../../core/services/auth';
 
 @Component({
   selector: 'app-login',
+  standalone: true,
   imports: [
-    ReactiveFormsModule, 
-    MatCardModule, 
-    MatFormFieldModule, 
-    MatInputModule, 
-    MatButtonModule, 
+    FormsModule,
+    MatButtonModule,
+    MatCardModule,
+    MatFormFieldModule,
     MatIconModule,
-    NgIf
+    MatInputModule,
   ],
   templateUrl: './login.html',
-  styleUrl: './login.css',
+  styleUrls: ['./login.css'],
 })
-export class Login {
-  // 1. Creamos el formulario y sus reglas (Validators)
-  loginForm = new FormGroup({
-    correo: new FormControl('', [Validators.required, Validators.email]),
-    password: new FormControl('', [Validators.required, Validators.minLength(8)])
-  });
+export class LoginComponent {
+  usuario = '';
+  password = '';
+  errorMessage = '';
+  infoMessage = '';
+  isSubmitting = false;
+  private redirectTo = '/dashboard';
 
-  // 2. Función que se ejecuta al darle clic a "Iniciar Sesión"
-  onSubmit() {
-    if (this.loginForm.valid) {
-      alert('¡Login correcto! Listo para entrar al sistema.');
-      // Más adelante aquí pondremos el código para llevar al usuario al Dashboard
-    } else {
-      // Si hay errores, forzamos a que se muestren en rojo
-      this.loginForm.markAllAsTouched();
+  constructor(
+    private auth: AuthService,
+    private route: ActivatedRoute,
+    private router: Router,
+  ) {
+    this.redirectTo =
+      this.route.snapshot.queryParamMap.get('redirectTo') || '/dashboard';
+
+    if (this.redirectTo !== '/dashboard') {
+      this.infoMessage = 'Inicia sesion para continuar con la ruta solicitada.';
+    }
+  }
+
+  login(): void {
+    this.errorMessage = '';
+    const normalizedUser = this.usuario.trim().toLowerCase();
+    const emailPattern = /^[^\s@]+@[^\s@]+\.com$/i;
+
+    if (!normalizedUser || !this.password.trim()) {
+      this.errorMessage = 'Completa usuario y contrasena para continuar.';
+      return;
+    }
+
+    if (!emailPattern.test(normalizedUser)) {
+      this.errorMessage = 'El usuario debe tener formato de correo valido y terminar en .com.';
+      return;
+    }
+
+    this.isSubmitting = true;
+
+    try {
+      const user = this.auth.login(normalizedUser);
+      const targetRoute =
+        this.redirectTo === '/dashboard' && user.rol !== 'jefe'
+          ? this.auth.getDefaultRouteForRole(user.rol)
+          : this.redirectTo;
+      this.router.navigateByUrl(targetRoute);
+      return;
+    } catch (error) {
+      this.errorMessage =
+        error instanceof Error ? error.message : 'No se pudo iniciar sesion.';
+    } finally {
+      this.isSubmitting = false;
     }
   }
 }

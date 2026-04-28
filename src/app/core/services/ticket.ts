@@ -295,18 +295,18 @@ export class TicketService {
     }
 
     if (filters.fechaDesde) {
-      const desde = new Date(filters.fechaDesde);
+      const desde = this.parseFilterDate(filters.fechaDesde, 'start');
       tickets = tickets.filter((ticket) => {
         const ticketDate = this.parseDateFromString(ticket.fi);
-        return ticketDate !== null && ticketDate >= desde;
+        return ticketDate !== null && desde !== null && ticketDate >= desde;
       });
     }
 
     if (filters.fechaHasta) {
-      const hasta = new Date(filters.fechaHasta);
+      const hasta = this.parseFilterDate(filters.fechaHasta, 'end');
       tickets = tickets.filter((ticket) => {
         const ticketDate = this.parseDateFromString(ticket.fi);
-        return ticketDate !== null && ticketDate <= hasta;
+        return ticketDate !== null && hasta !== null && ticketDate <= hasta;
       });
     }
 
@@ -534,6 +534,25 @@ export class TicketService {
     }
 
     return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+  }
+
+  private parseFilterDate(
+    dateStr: string,
+    boundary: 'start' | 'end',
+  ): Date | null {
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) {
+      return null;
+    }
+
+    const [year, month, day] = parts.map(Number);
+    if (!year || !month || !day) {
+      return null;
+    }
+
+    return boundary === 'start'
+      ? new Date(year, month - 1, day, 0, 0, 0, 0)
+      : new Date(year, month - 1, day, 23, 59, 59, 999);
   }
 
   private getCurrentDate(): string {

@@ -211,6 +211,12 @@ export class TicketsComponent {
   }
 
   getCount(status: TicketStatus): number {
+    if (this.currentRole === 'colaborador') {
+      return this.ticketService
+        .getTicketsByStatus(status)
+        .filter((ticket) => ticket.usuario === this.currentUserName).length;
+    }
+
     return this.ticketService.countByStatus()[status];
   }
 
