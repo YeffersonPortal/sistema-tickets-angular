@@ -1,1 +1,200 @@
-<p>dashboard works!</p>
+<section class="dashboard-page">
+  <mat-card class="dashboard-hero">
+    <div class="hero-copy">
+      <p class="hero-eyebrow">SGT</p>
+      <h1>Dashboard de tickets</h1>
+      <p>
+        Visualiza el estado general del soporte y filtra la operacion por
+        fechas, usuario, prioridad y estado.
+      </p>
+    </div>
+
+    <div class="hero-summary">
+      <div>
+        <span>Eficiencia</span>
+        <strong>{{ resolutionRate }}%</strong>
+      </div>
+      <div>
+        <span>Carga activa</span>
+        <strong>{{ workloadRate }}%</strong>
+      </div>
+    </div>
+  </mat-card>
+
+  <mat-card class="filters-card">
+    <div class="filters-grid">
+      <mat-form-field appearance="outline">
+        <mat-label>Fecha desde</mat-label>
+        <input
+          matInput
+          [matDatepicker]="pickerDesde"
+          [(ngModel)]="filters.fechaDesde"
+          (ngModelChange)="applyFilters()"
+          readonly
+        />
+        <mat-datepicker-toggle matSuffix [for]="pickerDesde"></mat-datepicker-toggle>
+        <mat-datepicker #pickerDesde></mat-datepicker>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Fecha hasta</mat-label>
+        <input
+          matInput
+          [matDatepicker]="pickerHasta"
+          [(ngModel)]="filters.fechaHasta"
+          (ngModelChange)="applyFilters()"
+          readonly
+        />
+        <mat-datepicker-toggle matSuffix [for]="pickerHasta"></mat-datepicker-toggle>
+        <mat-datepicker #pickerHasta></mat-datepicker>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Estado</mat-label>
+        <mat-select [(ngModel)]="filters.status" (ngModelChange)="applyFilters()">
+          <mat-option value="">Todos</mat-option>
+          @for (status of statusOptions; track status.value) {
+            <mat-option [value]="status.value">{{ status.label }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Usuario</mat-label>
+        <mat-select [(ngModel)]="filters.usuario" (ngModelChange)="applyFilters()">
+          <mat-option value="">Todos</mat-option>
+          @for (user of users; track user) {
+            <mat-option [value]="user">{{ user }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Prioridad</mat-label>
+        <mat-select
+          [(ngModel)]="filters.prioridad"
+          (ngModelChange)="applyFilters()"
+        >
+          <mat-option value="">Todas</mat-option>
+          @for (priority of priorityOptions; track priority) {
+            <mat-option [value]="priority">{{ priority }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <div class="filter-actions">
+        <button mat-stroked-button type="button" (click)="resetFilters()">
+          Limpiar filtros
+        </button>
+        <button mat-stroked-button type="button" (click)="exportCsv()">
+          Exportar CSV
+        </button>
+        <button mat-flat-button type="button" (click)="exportPrintableReport()">
+          Exportar PDF
+        </button>
+      </div>
+    </div>
+  </mat-card>
+
+  <div class="stats-grid">
+    <mat-card class="stat-card stat-warning">
+      <span>Tickets por cerrar</span>
+      <strong>{{ stats.porCerrar }}</strong>
+      <mat-icon>schedule</mat-icon>
+    </mat-card>
+
+    <mat-card class="stat-card stat-violet">
+      <span>Tickets rechazados</span>
+      <strong>{{ stats.rechazados }}</strong>
+      <mat-icon>cancel</mat-icon>
+    </mat-card>
+
+    <mat-card class="stat-card stat-primary">
+      <span>Tickets cerrados</span>
+      <strong>{{ stats.cerrados }}</strong>
+      <mat-icon>task_alt</mat-icon>
+    </mat-card>
+
+    <mat-card class="stat-card stat-danger">
+      <span>Tickets eliminados</span>
+      <strong>{{ stats.eliminados }}</strong>
+      <mat-icon>delete</mat-icon>
+    </mat-card>
+  </div>
+
+  <div class="dashboard-grid">
+    <mat-card class="panel-card">
+      <div class="panel-head">
+        <div>
+          <h2>Estado general</h2>
+          <p>Lectura rapida del soporte actual</p>
+        </div>
+      </div>
+
+      <div class="kpi-block">
+        <div class="kpi-row">
+          <span>Tickets resueltos</span>
+          <strong>{{ stats.resueltos }}</strong>
+        </div>
+        <div class="progress-track">
+          <div class="progress-bar progress-primary" [style.width.%]="resolutionRate"></div>
+        </div>
+      </div>
+
+      <div class="kpi-block">
+        <div class="kpi-row">
+          <span>Tickets pendientes</span>
+          <strong>{{ stats.pendientes }}</strong>
+        </div>
+        <div class="progress-track">
+          <div class="progress-bar progress-warning" [style.width.%]="workloadRate"></div>
+        </div>
+      </div>
+
+      <div class="breakdown-list">
+        @for (item of statusBreakdown; track item.label) {
+          <div class="breakdown-item">
+            <div class="breakdown-copy">
+              <span>{{ item.label }}</span>
+              <small>
+                {{ stats.total > 0 ? ((item.value / stats.total) * 100).toFixed(0) : 0 }}%
+              </small>
+            </div>
+            <strong [class]="'tone-' + item.tone">{{ item.value }}</strong>
+          </div>
+        }
+      </div>
+    </mat-card>
+
+    <mat-card class="panel-card">
+      <div class="panel-head">
+        <div>
+          <h2>Ultimos tickets</h2>
+          <p>Los registros mas recientes segun los filtros actuales</p>
+        </div>
+      </div>
+
+      @if (recentTickets.length === 0) {
+        <div class="empty-panel">
+          <mat-icon>insights</mat-icon>
+          <p>No hay tickets para mostrar con esos filtros.</p>
+        </div>
+      } @else {
+        <div class="recent-list">
+          @for (ticket of recentTickets; track ticket.id) {
+            <div class="recent-item">
+              <div>
+                <strong>{{ ticket.asunto }}</strong>
+                <span>{{ ticket.usuario }} · {{ ticket.area }}</span>
+              </div>
+              <div class="recent-meta">
+                <span>{{ ticket.fi || '-' }}</span>
+                <strong>{{ ticket.status }}</strong>
+              </div>
+            </div>
+          }
+        </div>
+      }
+    </mat-card>
+  </div>
+</section>
