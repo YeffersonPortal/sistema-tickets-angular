@@ -1,4 +1,6 @@
 import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 import { StorageService } from './storage';
 
 export type UserRole = 'jefe' | 'tecnico' | 'colaborador';
@@ -20,26 +22,19 @@ export interface DemoUser {
   providedIn: 'root',
 })
 export class AuthService {
+  private readonly apiUrl = 'https://ngji0j6x3a.execute-api.us-east-1.amazonaws.com/v1';
   private readonly userKey = 'user';
+
   private readonly demoUsers: DemoUser[] = [
-    {
-      email: 'jefe.sistemas@sgt.com',
-      nombre: 'Jefe de sistemas',
-      rol: 'jefe',
-    },
-    {
-      email: 'tecnico.soporte@sgt.com',
-      nombre: 'Tecnico de soporte',
-      rol: 'tecnico',
-    },
-    {
-      email: 'colaborador@sgt.com',
-      nombre: 'Colaborador',
-      rol: 'colaborador',
-    },
+    { email: 'jefe.sistemas@sgt.com', nombre: 'Jefe de sistemas', rol: 'jefe' },
+    { email: 'tecnico.soporte@sgt.com', nombre: 'Tecnico de soporte', rol: 'tecnico' },
+    { email: 'colaborador@sgt.com', nombre: 'Colaborador', rol: 'colaborador' },
   ];
 
-  constructor(private storage: StorageService) {}
+  constructor(
+    private storage: StorageService,
+    private http: HttpClient
+  ) {}
 
   getDemoUsers(): DemoUser[] {
     return [...this.demoUsers];
@@ -47,17 +42,10 @@ export class AuthService {
 
   getCurrentUser(): AuthUser | null {
     const storedUser = this.storage.getItem<Partial<AuthUser>>(this.userKey);
-
-    if (
-      !storedUser?.email ||
-      !storedUser.nombre ||
-      !storedUser.rol ||
-      !storedUser.usuario
-    ) {
+    if (!storedUser?.email || !storedUser.nombre || !storedUser.rol || !storedUser.usuario) {
       this.storage.removeItem(this.userKey);
       return null;
     }
-
     return storedUser as AuthUser;
   }
 
@@ -69,23 +57,39 @@ export class AuthService {
     return this.getCurrentUser() !== null;
   }
 
-  login(usuario: string): AuthUser {
-    const normalizedEmail = usuario.trim().toLowerCase();
-    const account = this.demoUsers.find((item) => item.email === normalizedEmail);
+  // MÉTODO ACTUALIZADO PARA AWS
+  // MÉTODO ACTUALIZADO PARA AWS Y SQL SERVER
+  // MÉTODO ACTUALIZADO PARA AWS
+  // MÉTODO ACTUALIZADO PARA AWS Y CREACIÓN DE TICKETS
+  async login(usuario: string): Promise<AuthUser> {
+    try {
+      const body = { email: usuario }; 
 
-    if (!account) {
-      throw new Error('El usuario no existe en los accesos de prueba.');
+      const response = await firstValueFrom(
+        this.http.post<any>(`${this.apiUrl}/login`, body)
+      );
+
+      const dbUser = response.data;
+
+      if (!dbUser) {
+        throw new Error('No se recibieron datos del servidor.');
+      }
+
+      // TRUCO MAESTRO: Guardamos el 'id' numérico dentro de 'usuario'
+      const userData: AuthUser = {
+        email: dbUser.email,
+        nombre: dbUser.nombre,
+        rol: dbUser.rol,
+        usuario: dbUser.id // <--- AQUÍ ESTÁ EL CAMBIO CLAVE
+      };
+
+      this.storage.setItem(this.userKey, userData);
+      return userData;
+      
+    } catch (error) {
+      console.error('Error en login:', error);
+      throw error;
     }
-
-    const user: AuthUser = {
-      email: account.email,
-      nombre: account.nombre,
-      rol: account.rol,
-      usuario: account.nombre,
-    };
-
-    this.storage.setItem(this.userKey, user);
-    return user;
   }
 
   logout(): void {
@@ -94,9 +98,7 @@ export class AuthService {
 
   canAccessRoute(route: string): boolean {
     const role = this.getCurrentRole();
-    if (!role) {
-      return false;
-    }
+    if (!role) return false;
 
     const accessMap: Record<UserRole, string[]> = {
       jefe: ['/dashboard', '/tickets', '/monitor'],
@@ -108,11 +110,7 @@ export class AuthService {
   }
 
   getDefaultRouteForRole(role: UserRole | null): string {
-    if (role === 'jefe') {
-      return '/dashboard';
-    }
-
-    return '/tickets';
+    return role === 'jefe' ? '/dashboard' : '/tickets';
   }
 
   getDefaultRouteForCurrentUser(): string {
@@ -125,7 +123,6 @@ export class AuthService {
       tecnico: 'Tecnico de soporte',
       colaborador: 'Colaborador',
     };
-
     return role ? labels[role] : 'Invitado';
   }
 }

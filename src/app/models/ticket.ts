@@ -41,6 +41,7 @@ export interface Ticket {
 export interface TicketFilters {
   status?: TicketStatus;
   usuario?: string;
+  usuarioId?: string | number; // <--- AGREGA ESTA LÍNEA
   prioridad?: TicketPriority;
   area?: string;
   searchTerm?: string;

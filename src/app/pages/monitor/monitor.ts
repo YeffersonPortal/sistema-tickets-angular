@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core'; // <--- 1. Importamos ChangeDetectorRef
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -12,6 +12,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatSelectModule } from '@angular/material/select';
 import { TicketService } from '../../core/services/ticket';
+import { AuthService } from '../../core/services/auth'; 
 import {
   Ticket,
   TicketPriority,
@@ -40,16 +41,15 @@ import {
   templateUrl: './monitor.html',
   styleUrls: ['./monitor.css'],
 })
-export class MonitorComponent {
+export class MonitorComponent implements OnInit {
   readonly statuses: { key: TicketStatus; label: string }[] = [
     { key: 'por-cerrar', label: 'Tickets por cerrar' },
     { key: 'rechazados', label: 'Tickets rechazados' },
     { key: 'cerrados', label: 'Tickets cerrados' },
     { key: 'eliminados', label: 'Tickets eliminados' },
   ];
-  readonly supportAgents = [
-    'Tecnico de soporte',
-  ];
+  
+  readonly supportAgents = ['Tecnico de soporte'];
   readonly priorities: TicketPriority[] = ['baja', 'media', 'alta', 'urgente'];
   readonly sortOptions: { value: TicketSortField; label: string }[] = [
     { value: 'fecha', label: 'Fecha de creacion' },
@@ -68,52 +68,66 @@ export class MonitorComponent {
   selectedTicket: Ticket | null = null;
   selectedAgent = '';
   tickets: Ticket[] = [];
+  statusCounts: Record<string, number> = {}; 
 
-  constructor(private ticketService: TicketService) {}
+  constructor(
+    private ticketService: TicketService,
+    private auth: AuthService,
+    private cdr: ChangeDetectorRef // <--- 2. Inyectamos ChangeDetectorRef
+  ) {}
 
-  ngOnInit(): void {
-    this.loadTickets();
+  async ngOnInit(): Promise<void> {
+    await this.loadTickets();
   }
 
-  loadTickets(): void {
-    const filtered = this.ticketService.filterTickets({
-      status: this.selectedStatus,
-      searchTerm: this.searchTerm,
-      prioridad: this.selectedPriority || undefined,
-      fechaDesde: this.formatDateFilter(this.fechaDesde),
-      fechaHasta: this.formatDateFilter(this.fechaHasta),
-      sortBy: this.sortBy,
-      sortDirection: this.sortDirection,
-    });
+  // MÉTODO PRINCIPAL DE CARGA
+  async loadTickets(): Promise<void> {
+    try {
+      // 1. Pedimos los tickets a AWS usando los filtros seleccionados
+      const filtered = await this.ticketService.filterTickets({
+        status: this.selectedStatus,
+        searchTerm: this.searchTerm,
+        prioridad: this.selectedPriority || undefined,
+        fechaDesde: this.formatDateFilter(this.fechaDesde),
+        fechaHasta: this.formatDateFilter(this.fechaHasta),
+        sortBy: this.sortBy,
+        sortDirection: this.sortDirection,
+      });
 
-    this.tickets = filtered.filter((ticket) => {
-      if (!this.responsableTerm.trim()) {
-        return true;
+      // 2. Filtrado local para responsable
+      this.tickets = filtered.filter((ticket) => {
+        if (!this.responsableTerm.trim()) return true;
+        const term = this.responsableTerm.toLowerCase();
+        return [ticket.usuario, ticket.tecnico ?? ''].join(' ').toLowerCase().includes(term);
+      });
+
+      // 3. Actualizar detalle si hay uno abierto
+      if (this.selectedTicket) {
+        this.selectedTicket = await this.ticketService.getTicketById(this.selectedTicket.id);
+        this.selectedAgent = this.selectedTicket?.tecnico ?? '';
       }
 
-      const term = this.responsableTerm.toLowerCase();
-      return [ticket.usuario, ticket.tecnico ?? '']
-        .join(' ')
-        .toLowerCase()
-        .includes(term);
-    });
+      // 4. Actualizamos los números de las pestañas superiores
+      this.statusCounts = await this.ticketService.countByStatus();
 
-    if (this.selectedTicket) {
-      this.selectedTicket = this.ticketService.getTicketById(this.selectedTicket.id);
-      this.selectedAgent = this.selectedTicket?.tecnico ?? '';
+      // ✨ EL TOQUE MÁGICO: Forzamos a Angular a pintar los cambios inmediatamente
+      this.cdr.detectChanges();
+      
+    } catch (error) {
+      console.error("Error cargando la pantalla de monitoreo:", error);
     }
   }
 
-  setStatus(status: TicketStatus): void {
+  async setStatus(status: TicketStatus): Promise<void> {
     this.selectedStatus = status;
-    this.loadTickets();
+    await this.loadTickets();
   }
 
-  onSearchChange(): void {
-    this.loadTickets();
+  async onSearchChange(): Promise<void> {
+    await this.loadTickets();
   }
 
-  clearFilters(): void {
+  async clearFilters(): Promise<void> {
     this.searchTerm = '';
     this.responsableTerm = '';
     this.fechaDesde = null;
@@ -121,63 +135,66 @@ export class MonitorComponent {
     this.selectedPriority = '';
     this.sortBy = 'fecha';
     this.sortDirection = 'desc';
-    this.loadTickets();
+    await this.loadTickets();
   }
 
   openTicket(ticket: Ticket): void {
     this.selectedTicket = ticket;
     this.selectedAgent = ticket.tecnico ?? '';
+    this.cdr.detectChanges(); // También aquí por si acaso al abrir el detalle
   }
 
-  reassignSelected(): void {
-    if (!this.selectedTicket || !this.selectedAgent) {
-      return;
-    }
+  async reassignSelected(): Promise<void> {
+    if (!this.selectedTicket || !this.selectedAgent) return;
 
-    this.ticketService.reassignTicket(this.selectedTicket.id, this.selectedAgent);
-    this.selectedTicket = this.ticketService.getTicketById(this.selectedTicket.id);
-    this.loadTickets();
+    try {
+      await this.ticketService.reassignTicket(
+        this.selectedTicket.id, 
+        this.selectedAgent,
+        this.auth.getCurrentUser()?.usuario
+      );
+      await this.loadTickets();
+    } catch (error) {
+      alert("Error al reasignar en AWS");
+    }
   }
 
-  acceptSolution(): void {
-    if (!this.selectedTicket) {
-      return;
-    }
+  async acceptSolution(): Promise<void> {
+    if (!this.selectedTicket) return;
 
-    this.ticketService.changeTicketStatus(
+    await this.ticketService.changeTicketStatus(
       this.selectedTicket.id,
       'cerrados',
-      'Se acepto la solucion del ticket.',
+      this.auth.getCurrentUser()?.usuario || 'admin',
+      'Se acepto la solucion del ticket.'
     );
-    this.selectedTicket = this.ticketService.getTicketById(this.selectedTicket.id);
-    this.loadTickets();
+    await this.loadTickets();
   }
 
-  rejectSolution(): void {
-    if (!this.selectedTicket) {
-      return;
-    }
+  async rejectSolution(): Promise<void> {
+    if (!this.selectedTicket) return;
 
-    this.ticketService.changeTicketStatus(
+    await this.ticketService.changeTicketStatus(
       this.selectedTicket.id,
       'rechazados',
-      'Se anulo la solucion del ticket.',
+      this.auth.getCurrentUser()?.usuario || 'admin',
+      'Se anulo la solucion del ticket.'
     );
-    this.selectedTicket = this.ticketService.getTicketById(this.selectedTicket.id);
-    this.loadTickets();
+    await this.loadTickets();
   }
 
-  markDeleted(ticket: Ticket): void {
-    this.ticketService.changeTicketStatus(
+  async markDeleted(ticket: Ticket): Promise<void> {
+    await this.ticketService.changeTicketStatus(
       ticket.id,
       'eliminados',
-      'El ticket fue marcado como eliminado desde monitoreo.',
+      this.auth.getCurrentUser()?.usuario || 'admin',
+      'El ticket fue marcado como eliminado desde monitoreo.'
     );
-    this.loadTickets();
+    await this.loadTickets();
   }
 
   getCount(status: TicketStatus): number {
-    return this.ticketService.countByStatus()[status];
+    return this.statusCounts[status] ?? 0;
   }
 
   getStatusLabel(status: TicketStatus): string {
@@ -189,10 +206,7 @@ export class MonitorComponent {
   }
 
   private formatDateFilter(date: Date | null): string | undefined {
-    if (!date) {
-      return undefined;
-    }
-
+    if (!date) return undefined;
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');

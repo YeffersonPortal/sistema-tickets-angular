@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core'; // <-- 1. Importamos ChangeDetectorRef
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -10,6 +10,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatSelectModule } from '@angular/material/select';
 import { TicketService } from '../../core/services/ticket';
+
 import {
   Ticket,
   TicketPriority,
@@ -35,7 +36,7 @@ import {
   templateUrl: './dashboard.html',
   styleUrls: ['./dashboard.css'],
 })
-export class DashboardComponent {
+export class DashboardComponent implements OnInit {
   readonly statusOptions: { value: TicketStatus; label: string }[] = [
     { value: 'por-cerrar', label: 'Por cerrar' },
     { value: 'rechazados', label: 'Rechazados' },
@@ -64,6 +65,8 @@ export class DashboardComponent {
   };
 
   filteredTickets: Ticket[] = [];
+  uniqueUsers: string[] = []; 
+  
   stats: TicketStatistics = {
     total: 0,
     porCerrar: 0,
@@ -74,25 +77,50 @@ export class DashboardComponent {
     pendientes: 0,
   };
 
-  constructor(private ticketService: TicketService) {}
+  // 2. Inyectamos ChangeDetectorRef en el constructor
+  constructor(
+    private ticketService: TicketService,
+    private cdr: ChangeDetectorRef 
+  ) {}
 
-  ngOnInit(): void {
-    this.applyFilters();
+  async ngOnInit(): Promise<void> {
+    await this.cargarUsuarios();
+    await this.applyFilters();
   }
 
-  applyFilters(): void {
-    this.filteredTickets = this.ticketService.filterTickets({
-      status: this.filters.status || undefined,
-      usuario: this.filters.usuario || undefined,
-      prioridad: this.filters.prioridad || undefined,
-      fechaDesde: this.formatDateFilter(this.filters.fechaDesde),
-      fechaHasta: this.formatDateFilter(this.filters.fechaHasta),
-    });
-
-    this.stats = this.buildStatistics(this.filteredTickets);
+  async cargarUsuarios(): Promise<void> {
+    try {
+      this.uniqueUsers = await this.ticketService.getUniqueUsers();
+      // Forzamos actualización visual al recibir usuarios
+      this.cdr.detectChanges(); 
+    } catch (error) {
+      console.error('Error al cargar usuarios:', error);
+    }
   }
 
-  resetFilters(): void {
+  async applyFilters(): Promise<void> {
+    try {
+      // 1. Pedimos los tickets a AWS usando los filtros seleccionados
+      this.filteredTickets = await this.ticketService.filterTickets({
+        status: this.filters.status || undefined,
+        usuario: this.filters.usuario || undefined,
+        prioridad: this.filters.prioridad || undefined,
+        fechaDesde: this.formatDateFilter(this.filters.fechaDesde),
+        fechaHasta: this.formatDateFilter(this.filters.fechaHasta),
+      });
+
+      // 2. Calculamos estadísticas
+      this.stats = this.buildStatistics(this.filteredTickets);
+      
+      // 3. ✨ OBLIGAMOS A ANGULAR A RECOGER LOS CAMBIOS
+      this.cdr.detectChanges(); 
+
+    } catch (error) {
+      console.error('Error al aplicar filtros en el Dashboard:', error);
+    }
+  }
+
+  async resetFilters(): Promise<void> {
     this.filters = {
       fechaDesde: null,
       fechaHasta: null,
@@ -100,11 +128,11 @@ export class DashboardComponent {
       usuario: '',
       prioridad: '',
     };
-    this.applyFilters();
+    await this.applyFilters();
   }
 
   get users(): string[] {
-    return this.ticketService.getUniqueUsers();
+    return this.uniqueUsers;
   }
 
   get resolutionRate(): number {
@@ -134,15 +162,7 @@ export class DashboardComponent {
 
   exportCsv(): void {
     const headers = [
-      'Nro',
-      'Asunto',
-      'Usuario',
-      'Area',
-      'Categoria',
-      'Prioridad',
-      'Estado',
-      'Fecha de inicio',
-      'Fecha de cierre',
+      'Nro', 'Asunto', 'Usuario', 'Area', 'Categoria', 'Prioridad', 'Estado', 'Fecha de inicio', 'Fecha de cierre',
     ];
 
     const rows = this.filteredTickets.map((ticket) => [
@@ -178,9 +198,7 @@ export class DashboardComponent {
 
   exportPrintableReport(): void {
     const reportWindow = window.open('', '_blank', 'width=1024,height=768');
-    if (!reportWindow) {
-      return;
-    }
+    if (!reportWindow) return;
 
     const rows = this.filteredTickets
       .map(
@@ -205,8 +223,6 @@ export class DashboardComponent {
           <title>Reporte de tickets</title>
           <style>
             body { font-family: Arial, sans-serif; margin: 32px; color: #0f172a; }
-            h1 { margin-bottom: 8px; }
-            p { color: #475569; }
             .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 24px 0; }
             .summary div { padding: 12px; border: 1px solid #cbd5e1; border-radius: 12px; }
             table { width: 100%; border-collapse: collapse; margin-top: 20px; }
@@ -216,7 +232,6 @@ export class DashboardComponent {
         </head>
         <body>
           <h1>SGT - Reporte de tickets</h1>
-          <p>Generado con los filtros activos del dashboard.</p>
           <div class="summary">
             <div><strong>Total</strong><br>${this.stats.total}</div>
             <div><strong>Por cerrar</strong><br>${this.stats.porCerrar}</div>
@@ -226,32 +241,26 @@ export class DashboardComponent {
           <table>
             <thead>
               <tr>
-                <th>Nro</th>
-                <th>Asunto</th>
-                <th>Usuario</th>
-                <th>Area</th>
-                <th>Categoria</th>
-                <th>Prioridad</th>
-                <th>Estado</th>
-                <th>Fecha</th>
+                <th>Nro</th><th>Asunto</th><th>Usuario</th><th>Area</th><th>Categoria</th><th>Prioridad</th><th>Estado</th><th>Fecha</th>
               </tr>
             </thead>
-            <tbody>
-              ${rows || '<tr><td colspan="8">No hay tickets para exportar.</td></tr>'}
-            </tbody>
+            <tbody>${rows || '<tr><td colspan="8">No hay tickets para exportar.</td></tr>'}</tbody>
           </table>
         </body>
       </html>
     `);
     reportWindow.document.close();
     reportWindow.focus();
-    reportWindow.print();
+    setTimeout(() => reportWindow.print(), 500);
   }
 
   private buildStatistics(tickets: Ticket[]): TicketStatistics {
     const counts = tickets.reduce(
       (acc, ticket) => {
-        acc[ticket.status] += 1;
+        const status = ticket.status as TicketStatus;
+        if (acc[status] !== undefined) {
+          acc[status] += 1;
+        }
         return acc;
       },
       {
@@ -269,16 +278,12 @@ export class DashboardComponent {
       cerrados: counts.cerrados,
       eliminados: counts.eliminados,
       resueltos: counts.cerrados,
-      pendientes:
-        counts['por-cerrar'] + counts.rechazados + counts.eliminados,
+      pendientes: counts['por-cerrar'] + counts.rechazados + counts.eliminados,
     };
   }
 
   private formatDateFilter(date: Date | null): string | undefined {
-    if (!date) {
-      return undefined;
-    }
-
+    if (!date) return undefined;
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
