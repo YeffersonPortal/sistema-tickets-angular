@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { ChangeDetectorRef, Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -11,6 +11,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatSelectModule } from '@angular/material/select';
+import { AuthService } from '../../core/services/auth';
 import { TicketService } from '../../core/services/ticket';
 import {
   Ticket,
@@ -68,39 +69,55 @@ export class MonitorComponent {
   selectedTicket: Ticket | null = null;
   selectedAgent = '';
   tickets: Ticket[] = [];
+  statusCounts: Record<TicketStatus, number> = {
+    'por-cerrar': 0,
+    rechazados: 0,
+    cerrados: 0,
+    eliminados: 0,
+  };
 
-  constructor(private ticketService: TicketService) {}
+  constructor(
+    private auth: AuthService,
+    private ticketService: TicketService,
+    private changeDetector: ChangeDetectorRef,
+  ) {}
 
   ngOnInit(): void {
     this.loadTickets();
   }
 
   loadTickets(): void {
-    const filtered = this.ticketService.filterTickets({
-      status: this.selectedStatus,
+    this.ticketService.filterTickets({
       searchTerm: this.searchTerm,
       prioridad: this.selectedPriority || undefined,
       fechaDesde: this.formatDateFilter(this.fechaDesde),
       fechaHasta: this.formatDateFilter(this.fechaHasta),
       sortBy: this.sortBy,
       sortDirection: this.sortDirection,
-    });
+    }).subscribe((filtered) => {
+      const visibleByResponsible = filtered.filter((ticket) => {
+        if (!this.responsableTerm.trim()) {
+          return true;
+        }
 
-    this.tickets = filtered.filter((ticket) => {
-      if (!this.responsableTerm.trim()) {
-        return true;
-      }
+        const term = this.responsableTerm.toLowerCase();
+        return [ticket.usuario, ticket.tecnico ?? '']
+          .join(' ')
+          .toLowerCase()
+          .includes(term);
+      });
 
-      const term = this.responsableTerm.toLowerCase();
-      return [ticket.usuario, ticket.tecnico ?? '']
-        .join(' ')
-        .toLowerCase()
-        .includes(term);
+      this.statusCounts = this.buildStatusCounts(visibleByResponsible);
+      this.tickets = visibleByResponsible.filter((ticket) => ticket.status === this.selectedStatus);
+      this.changeDetector.detectChanges();
     });
 
     if (this.selectedTicket) {
-      this.selectedTicket = this.ticketService.getTicketById(this.selectedTicket.id);
-      this.selectedAgent = this.selectedTicket?.tecnico ?? '';
+      this.ticketService.getTicketById(this.selectedTicket.id).subscribe((ticket) => {
+        this.selectedTicket = ticket;
+        this.selectedAgent = ticket?.tecnico ?? '';
+        this.changeDetector.detectChanges();
+      });
     }
   }
 
@@ -127,6 +144,7 @@ export class MonitorComponent {
   openTicket(ticket: Ticket): void {
     this.selectedTicket = ticket;
     this.selectedAgent = ticket.tecnico ?? '';
+    this.changeDetector.detectChanges();
   }
 
   reassignSelected(): void {
@@ -134,9 +152,16 @@ export class MonitorComponent {
       return;
     }
 
-    this.ticketService.reassignTicket(this.selectedTicket.id, this.selectedAgent);
-    this.selectedTicket = this.ticketService.getTicketById(this.selectedTicket.id);
-    this.loadTickets();
+    this.ticketService
+      .reassignTicket(
+        this.selectedTicket.id,
+        this.getAgentId(this.selectedAgent),
+        this.currentUserId,
+      )
+      .subscribe(() => {
+        this.loadTickets();
+        this.changeDetector.detectChanges();
+      });
   }
 
   acceptSolution(): void {
@@ -147,10 +172,12 @@ export class MonitorComponent {
     this.ticketService.changeTicketStatus(
       this.selectedTicket.id,
       'cerrados',
+      this.currentUserId,
       'Se acepto la solucion del ticket.',
-    );
-    this.selectedTicket = this.ticketService.getTicketById(this.selectedTicket.id);
-    this.loadTickets();
+    ).subscribe(() => {
+      this.loadTickets();
+      this.changeDetector.detectChanges();
+    });
   }
 
   rejectSolution(): void {
@@ -161,23 +188,28 @@ export class MonitorComponent {
     this.ticketService.changeTicketStatus(
       this.selectedTicket.id,
       'rechazados',
+      this.currentUserId,
       'Se anulo la solucion del ticket.',
-    );
-    this.selectedTicket = this.ticketService.getTicketById(this.selectedTicket.id);
-    this.loadTickets();
+    ).subscribe(() => {
+      this.loadTickets();
+      this.changeDetector.detectChanges();
+    });
   }
 
   markDeleted(ticket: Ticket): void {
     this.ticketService.changeTicketStatus(
       ticket.id,
       'eliminados',
+      this.currentUserId,
       'El ticket fue marcado como eliminado desde monitoreo.',
-    );
-    this.loadTickets();
+    ).subscribe(() => {
+      this.loadTickets();
+      this.changeDetector.detectChanges();
+    });
   }
 
   getCount(status: TicketStatus): number {
-    return this.ticketService.countByStatus()[status];
+    return this.statusCounts[status];
   }
 
   getStatusLabel(status: TicketStatus): string {
@@ -197,5 +229,32 @@ export class MonitorComponent {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  }
+
+  private get currentUserId(): number | null {
+    return this.auth.getCurrentUserId();
+  }
+
+  private getAgentId(agentName: string): number | null {
+    if (agentName === 'Tecnico de soporte') {
+      return 2;
+    }
+
+    return null;
+  }
+
+  private buildStatusCounts(tickets: Ticket[]): Record<TicketStatus, number> {
+    return tickets.reduce<Record<TicketStatus, number>>(
+      (counts, ticket) => {
+        counts[ticket.status] += 1;
+        return counts;
+      },
+      {
+        'por-cerrar': 0,
+        rechazados: 0,
+        cerrados: 0,
+        eliminados: 0,
+      },
+    );
   }
 }

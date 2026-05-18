@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { ChangeDetectorRef, Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -64,6 +64,7 @@ export class DashboardComponent {
   };
 
   filteredTickets: Ticket[] = [];
+  users: string[] = [];
   stats: TicketStatistics = {
     total: 0,
     porCerrar: 0,
@@ -74,22 +75,29 @@ export class DashboardComponent {
     pendientes: 0,
   };
 
-  constructor(private ticketService: TicketService) {}
+  constructor(
+    private changeDetector: ChangeDetectorRef,
+    private ticketService: TicketService,
+  ) {}
 
   ngOnInit(): void {
     this.applyFilters();
   }
 
   applyFilters(): void {
-    this.filteredTickets = this.ticketService.filterTickets({
+    this.ticketService.filterTickets({
       status: this.filters.status || undefined,
-      usuario: this.filters.usuario || undefined,
       prioridad: this.filters.prioridad || undefined,
       fechaDesde: this.formatDateFilter(this.filters.fechaDesde),
       fechaHasta: this.formatDateFilter(this.filters.fechaHasta),
+    }).subscribe((tickets) => {
+      this.filteredTickets = this.filters.usuario
+        ? tickets.filter((ticket) => ticket.usuario === this.filters.usuario)
+        : tickets;
+      this.users = [...new Set(tickets.map((ticket) => ticket.usuario))];
+      this.stats = this.buildStatistics(this.filteredTickets);
+      this.changeDetector.detectChanges();
     });
-
-    this.stats = this.buildStatistics(this.filteredTickets);
   }
 
   resetFilters(): void {
@@ -101,10 +109,6 @@ export class DashboardComponent {
       prioridad: '',
     };
     this.applyFilters();
-  }
-
-  get users(): string[] {
-    return this.ticketService.getUniqueUsers();
   }
 
   get resolutionRate(): number {
@@ -216,7 +220,7 @@ export class DashboardComponent {
         </head>
         <body>
           <h1>SGT - Reporte de tickets</h1>
-          <p>Generado con los filtros activos del dashboard.</p>
+          <p>Reporte de tickets registrados en el sistema.</p>
           <div class="summary">
             <div><strong>Total</strong><br>${this.stats.total}</div>
             <div><strong>Por cerrar</strong><br>${this.stats.porCerrar}</div>
@@ -251,7 +255,8 @@ export class DashboardComponent {
   private buildStatistics(tickets: Ticket[]): TicketStatistics {
     const counts = tickets.reduce(
       (acc, ticket) => {
-        acc[ticket.status] += 1;
+        const status = this.normalizeStatus(ticket.status);
+        acc[status] += 1;
         return acc;
       },
       {
@@ -272,6 +277,22 @@ export class DashboardComponent {
       pendientes:
         counts['por-cerrar'] + counts.rechazados + counts.eliminados,
     };
+  }
+
+  private normalizeStatus(status: string): TicketStatus {
+    const normalized = status.trim().toLowerCase();
+    const aliases: Record<string, TicketStatus> = {
+      'por-cerrar': 'por-cerrar',
+      'por cerrar': 'por-cerrar',
+      rechazado: 'rechazados',
+      rechazados: 'rechazados',
+      cerrado: 'cerrados',
+      cerrados: 'cerrados',
+      eliminado: 'eliminados',
+      eliminados: 'eliminados',
+    };
+
+    return aliases[normalized] ?? 'por-cerrar';
   }
 
   private formatDateFilter(date: Date | null): string | undefined {

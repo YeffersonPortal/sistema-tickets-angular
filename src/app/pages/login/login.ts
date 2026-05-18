@@ -60,19 +60,22 @@ export class LoginComponent {
 
     this.isSubmitting = true;
 
-    try {
-      const user = this.auth.login(normalizedUser);
-      const targetRoute =
-        this.redirectTo === '/dashboard' && user.rol !== 'jefe'
-          ? this.auth.getDefaultRouteForRole(user.rol)
-          : this.redirectTo;
-      this.router.navigateByUrl(targetRoute);
-      return;
-    } catch (error) {
-      this.errorMessage =
-        error instanceof Error ? error.message : 'No se pudo iniciar sesion.';
-    } finally {
-      this.isSubmitting = false;
-    }
+    this.auth.login(normalizedUser, this.password).subscribe({
+      next: (user) => {
+        const targetRoute =
+          this.redirectTo === '/dashboard' && user.rol !== 'jefe'
+            ? this.auth.getDefaultRouteForRole(user.rol)
+            : this.redirectTo;
+        this.router.navigateByUrl(targetRoute);
+      },
+      error: (error) => {
+        this.errorMessage =
+          error instanceof Error ? error.message : 'No se pudo iniciar sesion.';
+        this.isSubmitting = false;
+      },
+      complete: () => {
+        this.isSubmitting = false;
+      },
+    });
   }
 }

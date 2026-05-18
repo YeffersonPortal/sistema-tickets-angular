@@ -1,0 +1,57 @@
+flowchart LR
+    U[Usuario / Navegador]
+
+    subgraph FE[Frontend Angular]
+        C[Componentes: Welcome, Login, Dashboard, Tickets, Monitor]
+        S[Servicios Angular: AuthService, TicketService, NotificationService]
+        C --> S
+    end
+
+    subgraph HOST[AWS Hosting Frontend]
+        A[AWS Amplify Hosting o S3 + CloudFront]
+    end
+
+    subgraph AWS[AWS Backend]
+        API[API Gateway REST API]
+        subgraph LAMBDA[AWS Lambda Python 3.13]
+            L1[post_login]
+            L2[get_tickets]
+            L3[post_ticket]
+            L4[get_ticket]
+            L5[post_ticket_estado]
+            L6[post_ticket_atencion]
+            L7[get_dashboard]
+        end
+        ODBC[Capa ODBC]
+        RDS[(Amazon RDS SQL Server)]
+    end
+
+    U --> A
+    A --> FE
+    S --> API
+    API --> L1
+    API --> L2
+    API --> L3
+    API --> L4
+    API --> L5
+    API --> L6
+    API --> L7
+    L1 --> ODBC
+    L2 --> ODBC
+    L3 --> ODBC
+    L4 --> ODBC
+    L5 --> ODBC
+    L6 --> ODBC
+    L7 --> ODBC
+    ODBC --> RDS
+
+    subgraph SUPPORT[Servicios de soporte]
+        CW[CloudWatch Logs]
+        IAM[IAM Roles]
+        SG[Security Groups / VPC]
+    end
+
+    LAMBDA --> CW
+    IAM --> LAMBDA
+    SG --> RDS
+

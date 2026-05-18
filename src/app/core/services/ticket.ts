@@ -1,4 +1,8 @@
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
+import { map, Observable } from 'rxjs';
+import { API_BASE_URL } from '../api/api-config';
+import { ApiResponse } from '../api/api-response';
 import {
   Ticket,
   TicketAttention,
@@ -6,19 +10,22 @@ import {
   TicketFilters,
   TicketHistoryEvent,
   TicketPriority,
+  TicketSortDirection,
   TicketStatistics,
   TicketStatus,
   TicketValidationResult,
 } from '../../models/ticket';
-import { TICKET_AREAS, TICKET_SERVICE_TYPES } from '../data/ticket-catalogs';
-import { NotificationService } from './notification';
-import { StorageService } from './storage';
+
+interface TicketDetailApi {
+  ticket: Partial<Ticket> | null;
+  historial: TicketHistoryEvent[];
+  atencion: TicketAttention | null;
+}
 
 @Injectable({
   providedIn: 'root',
 })
 export class TicketService {
-  private readonly key = 'tickets';
   private readonly validStatuses: TicketStatus[] = [
     'por-cerrar',
     'rechazados',
@@ -31,349 +38,174 @@ export class TicketService {
     'alta',
     'urgente',
   ];
-  private readonly validAreas = [...TICKET_AREAS];
-  private readonly validServiceTypes = [...TICKET_SERVICE_TYPES];
 
-  constructor(
-    private storage: StorageService,
-    private notifications: NotificationService,
-  ) {}
+  constructor(private http: HttpClient) {}
 
-  getAllTickets(): Ticket[] {
-    const rawTickets = this.storage.getAll<Partial<Ticket>>(this.key);
-    return rawTickets.map((ticket) => this.normalizeTicket(ticket));
+  getAllTickets(): Observable<Ticket[]> {
+    return this.filterTickets();
   }
 
-  getTickets(): Ticket[] {
+  getTickets(): Observable<Ticket[]> {
     return this.getAllTickets();
   }
 
-  getTicketById(id: number): Ticket | null {
-    const ticket = this.storage.getById<Ticket>(this.key, id);
-    return ticket ? this.normalizeTicket(ticket) : null;
-  }
+  getTicketById(id: number): Observable<Ticket | null> {
+    const params = new HttpParams().set('ticketId', String(id));
 
-  createTicket(ticketData: TicketCreateInput): Ticket {
-    const ticket = this.buildNewTicket(ticketData);
-    const validation = this.validateTicket(ticket);
+    return this.http
+      .get<ApiResponse<TicketDetailApi>>(`${API_BASE_URL}/ticket`, { params })
+      .pipe(
+        map((response) => {
+          if (!response.ok || !response.data.ticket) {
+            return null;
+          }
 
-    if (!validation.isValid) {
-      throw new Error(validation.errors.join(', '));
-    }
-
-    const success = this.storage.add(this.key, ticket);
-    if (!success) {
-      throw new Error('Error al guardar el ticket');
-    }
-
-    if (ticket.tecnico) {
-      this.notifications.createNotification(
-        ticket.tecnico,
-        'Nuevo ticket asignado',
-        `Se te asigno el ticket ${ticket.nro || `TCK-${ticket.id}`}.`,
+          return this.normalizeTicket({
+            ...response.data.ticket,
+            historial: response.data.historial ?? [],
+            atencion: response.data.atencion ?? null,
+          });
+        }),
       );
-    }
-
-    return ticket;
   }
 
-  addTicket(ticket: Ticket): void {
-    const validation = this.validateTicket(ticket);
-
-    if (!validation.isValid) {
-      throw new Error(validation.errors.join(', '));
-    }
-
-    const success = this.storage.add(this.key, ticket);
-    if (!success) {
-      throw new Error('Error al guardar el ticket');
-    }
-  }
-
-  updateTicket(id: number, updates: Partial<Ticket>): Ticket {
-    const ticket = this.getTicketById(id);
-    if (!ticket) {
-      throw new Error('Ticket no encontrado');
-    }
-
-    const updatedTicket = this.normalizeTicket({
-      ...ticket,
-      ...updates,
+  createTicket(ticketData: TicketCreateInput, usuarioId: number | null): Observable<Ticket> {
+    const validation = this.validateTicket({
+      ...ticketData,
+      status: 'por-cerrar',
     });
-    const validation = this.validateTicket(updatedTicket);
 
     if (!validation.isValid) {
       throw new Error(validation.errors.join(', '));
     }
 
-    const success = this.storage.update(this.key, id, updatedTicket);
-    if (!success) {
-      throw new Error('Error al actualizar el ticket');
-    }
-
-    return updatedTicket;
+    return this.http
+      .post<ApiResponse<Partial<Ticket>>>(`${API_BASE_URL}/tickets`, {
+        asunto: ticketData.asunto,
+        usuarioId,
+        area: ticketData.area,
+        tipoServicio: ticketData.tipoServicio,
+        prioridad: ticketData.prioridad,
+        requerimiento: ticketData.requerimiento,
+        descripcion: ticketData.descripcion,
+        documentoUrl: ticketData.documento,
+        tecnicoId: ticketData.tecnico,
+      })
+      .pipe(map((response) => this.normalizeTicket(response.data)));
   }
 
   changeTicketStatus(
     id: number,
     newStatus: TicketStatus,
+    usuarioId: number | null,
     mensaje = '',
-  ): Ticket {
-    const ticket = this.getTicketById(id);
-    if (!ticket) {
-      throw new Error('Ticket no encontrado');
-    }
-
-    if (!this.validStatuses.includes(newStatus)) {
-      throw new Error('Estado invalido');
-    }
-
-    const updatedTicket: Ticket = {
-      ...ticket,
-      status: newStatus,
-      fc: newStatus === 'cerrados' ? this.getCurrentDate() : ticket.fc,
-      historial: [
-        ...ticket.historial,
-        {
-          fecha: this.getCurrentDateTime(),
-          accion: this.getStatusAction(newStatus),
-          mensaje:
-            mensaje || `Se cambio el estado a ${this.getStatusLabel(newStatus)}`,
-        },
-      ],
-    };
-
-    const success = this.storage.update(this.key, id, updatedTicket);
-    if (!success) {
-      throw new Error('Error al cambiar estado del ticket');
-    }
-
-    return updatedTicket;
+  ): Observable<Ticket> {
+    return this.http
+      .post<ApiResponse<Partial<Ticket>>>(`${API_BASE_URL}/ticket/estado`, {
+        ticketId: id,
+        estado: newStatus,
+        usuarioId,
+        mensaje,
+      })
+      .pipe(map((response) => this.normalizeTicket(response.data)));
   }
 
-  reassignTicket(id: number, newUser: string): Ticket {
-    const ticket = this.getTicketById(id);
-    if (!ticket) {
-      throw new Error('Ticket no encontrado');
-    }
-
-    const historyEvent: TicketHistoryEvent = {
-      fecha: this.getCurrentDateTime(),
-      accion: 'REASIGNACION',
-      mensaje: `Ticket reasignado a ${newUser}`,
-    };
-
-    const updatedTicket: Ticket = {
-      ...ticket,
-      usuario: newUser,
-      tecnico: newUser,
-      historial: [...ticket.historial, historyEvent],
-    };
-
-    const success = this.storage.update(this.key, id, updatedTicket);
-    if (!success) {
-      throw new Error('Error al reasignar el ticket');
-    }
-
-    this.notifications.createNotification(
-      newUser,
-      'Ticket reasignado',
-      `Tienes asignado el ticket ${ticket.nro || `TCK-${ticket.id}`}.`,
-    );
-
-    return updatedTicket;
+  reassignTicket(
+    id: number,
+    tecnicoId: number | null,
+    usuarioId: number | null,
+  ): Observable<Ticket> {
+    return this.http
+      .post<ApiResponse<Partial<Ticket>>>(`${API_BASE_URL}/ticket/reasignar`, {
+        ticketId: id,
+        tecnicoId,
+        usuarioId,
+      })
+      .pipe(map((response) => this.normalizeTicket(response.data)));
   }
 
-  addHistoryEvent(id: number, accion: string, mensaje: string): Ticket {
-    const ticket = this.getTicketById(id);
-    if (!ticket) {
-      throw new Error('Ticket no encontrado');
-    }
-
-    const historyEvent: TicketHistoryEvent = {
-      fecha: this.getCurrentDateTime(),
-      accion,
-      mensaje,
-    };
-
-    const updatedTicket: Ticket = {
-      ...ticket,
-      historial: [...ticket.historial, historyEvent],
-    };
-
-    const success = this.storage.update(this.key, id, updatedTicket);
-    if (!success) {
-      throw new Error('Error al agregar evento al historial');
-    }
-
-    return updatedTicket;
+  addHistoryEvent(id: number, accion: string, mensaje: string): Observable<Ticket | null> {
+    return this.getTicketById(id);
   }
 
   addAttentionDescription(
     id: number,
     descripcion: string,
+    usuarioId: number | null,
     documento: string | null = null,
-  ): Ticket {
-    const ticket = this.getTicketById(id);
-    if (!ticket) {
-      throw new Error('Ticket no encontrado');
-    }
-
-    const attention: TicketAttention = {
-      descripcion,
-      documento,
-    };
-
-    const updatedTicket: Ticket = {
-      ...ticket,
-      atencion: attention,
-    };
-
-    const success = this.storage.update(this.key, id, updatedTicket);
-    if (!success) {
-      throw new Error('Error al agregar descripcion de atencion');
-    }
-
-    return updatedTicket;
+  ): Observable<TicketAttention> {
+    return this.http
+      .post<ApiResponse<TicketAttention>>(`${API_BASE_URL}/ticket/atencion`, {
+        ticketId: id,
+        usuarioId,
+        descripcion,
+        documentoUrl: documento,
+      })
+      .pipe(map((response) => response.data));
   }
 
-  deleteTicket(id: number): boolean {
-    return this.storage.delete<Ticket>(this.key, id);
-  }
-
-  getTicketsByStatus(status: TicketStatus): Ticket[] {
-    return this.getAllTickets().filter((ticket) => ticket.status === status);
-  }
-
-  getTicketsByUser(usuario: string): Ticket[] {
-    return this.getAllTickets().filter((ticket) => ticket.usuario === usuario);
-  }
-
-  getTicketsByPriority(prioridad: TicketPriority): Ticket[] {
-    return this.getAllTickets().filter(
-      (ticket) => ticket.prioridad === prioridad,
-    );
-  }
-
-  filterTickets(filters: TicketFilters = {}): Ticket[] {
-    let tickets = this.getAllTickets();
+  filterTickets(filters: TicketFilters = {}): Observable<Ticket[]> {
+    let params = new HttpParams();
 
     if (filters.status) {
-      tickets = tickets.filter((ticket) => ticket.status === filters.status);
+      params = params.set('estado', filters.status);
     }
 
     if (filters.usuario) {
-      tickets = tickets.filter((ticket) => ticket.usuario === filters.usuario);
+      params = params.set('usuarioId', filters.usuario);
     }
 
     if (filters.prioridad) {
-      tickets = tickets.filter(
-        (ticket) => ticket.prioridad === filters.prioridad,
-      );
-    }
-
-    if (filters.area) {
-      tickets = tickets.filter((ticket) => ticket.area === filters.area);
+      params = params.set('prioridad', filters.prioridad);
     }
 
     if (filters.searchTerm) {
-      const term = filters.searchTerm.toLowerCase();
-      tickets = tickets.filter((ticket) => {
-        const searchableText = [
-          ticket.id,
-          ticket.nro ?? '',
-          ticket.asunto,
-          ticket.usuario,
-          ticket.area,
-          ticket.requerimiento,
-        ]
-          .join(' ')
-          .toLowerCase();
-
-        return searchableText.includes(term);
-      });
+      params = params.set('search', filters.searchTerm);
     }
 
     if (filters.fechaDesde) {
-      const desde = this.parseFilterDate(filters.fechaDesde, 'start');
-      tickets = tickets.filter((ticket) => {
-        const ticketDate = this.parseDateFromString(ticket.fi);
-        return ticketDate !== null && desde !== null && ticketDate >= desde;
-      });
+      params = params.set('fechaDesde', filters.fechaDesde);
     }
 
     if (filters.fechaHasta) {
-      const hasta = this.parseFilterDate(filters.fechaHasta, 'end');
-      tickets = tickets.filter((ticket) => {
-        const ticketDate = this.parseDateFromString(ticket.fi);
-        return ticketDate !== null && hasta !== null && ticketDate <= hasta;
-      });
+      params = params.set('fechaHasta', filters.fechaHasta);
     }
 
-    if (filters.sortBy) {
-      const direction = filters.sortDirection === 'asc' ? 1 : -1;
-      tickets = [...tickets].sort((left, right) => {
-        if (filters.sortBy === 'fecha') {
-          const leftDate = this.parseDateFromString(left.fi)?.getTime() ?? 0;
-          const rightDate = this.parseDateFromString(right.fi)?.getTime() ?? 0;
-          return (leftDate - rightDate) * direction;
-        }
-
-        if (filters.sortBy === 'prioridad') {
-          return (
-            (this.getPriorityRank(left.prioridad) -
-              this.getPriorityRank(right.prioridad)) * direction
+    return this.http
+      .get<ApiResponse<Partial<Ticket>[]>>(`${API_BASE_URL}/tickets`, { params })
+      .pipe(
+        map((response) => {
+          const tickets = (response.data ?? []).map((ticket) =>
+            this.normalizeTicket(ticket),
           );
-        }
-
-        return left.status.localeCompare(right.status) * direction;
-      });
-    }
-
-    return tickets;
+          return this.sortTickets(tickets, filters.sortBy, filters.sortDirection);
+        }),
+      );
   }
 
-  countByStatus(): Record<TicketStatus, number> {
-    return this.getAllTickets().reduce<Record<TicketStatus, number>>(
-      (acc, ticket) => {
-        acc[ticket.status] += 1;
-        return acc;
-      },
-      {
-        'por-cerrar': 0,
-        rechazados: 0,
-        cerrados: 0,
-        eliminados: 0,
-      },
+  countByStatus(filters: TicketFilters = {}): Observable<Record<TicketStatus, number>> {
+    return this.filterTickets(filters).pipe(
+      map((tickets) =>
+        tickets.reduce<Record<TicketStatus, number>>(
+          (acc, ticket) => {
+            acc[ticket.status] += 1;
+            return acc;
+          },
+          {
+            'por-cerrar': 0,
+            rechazados: 0,
+            cerrados: 0,
+            eliminados: 0,
+          },
+        ),
+      ),
     );
   }
 
-  getStatistics(): TicketStatistics {
-    const tickets = this.getAllTickets();
-    const counts = this.countByStatus();
-
-    return {
-      total: tickets.length,
-      porCerrar: counts['por-cerrar'],
-      rechazados: counts.rechazados,
-      cerrados: counts.cerrados,
-      eliminados: counts.eliminados,
-      resueltos: counts.cerrados,
-      pendientes:
-        counts['por-cerrar'] + counts.rechazados + counts.eliminados,
-    };
-  }
-
-  getUniqueUsers(): string[] {
-    return [...new Set(this.getAllTickets().map((ticket) => ticket.usuario))];
-  }
-
-  getUniqueAreas(): string[] {
-    return [...new Set(this.getAllTickets().map((ticket) => ticket.area))];
-  }
-
-  clearAllTickets(): boolean {
-    return this.storage.clear(this.key);
+  getStatistics(): Observable<TicketStatistics> {
+    return this.http
+      .get<ApiResponse<TicketStatistics>>(`${API_BASE_URL}/dashboard`)
+      .pipe(map((response) => response.data));
   }
 
   getStatusLabel(status: TicketStatus): string {
@@ -404,18 +236,10 @@ export class TicketService {
 
     if (!ticket.area?.trim()) {
       errors.push('El area es requerida');
-    } else if (!this.validAreas.includes(ticket.area as (typeof this.validAreas)[number])) {
-      errors.push('El area seleccionada no es valida');
     }
 
     if (!ticket.tipoServicio?.trim()) {
       errors.push('El tipo de servicio es requerido');
-    } else if (
-      !this.validServiceTypes.includes(
-        ticket.tipoServicio as (typeof this.validServiceTypes)[number],
-      )
-    ) {
-      errors.push('La categoria seleccionada no es valida');
     }
 
     if (!ticket.requerimiento?.trim()) {
@@ -428,9 +252,7 @@ export class TicketService {
       errors.push('Prioridad invalida');
     }
 
-    if (!ticket.status) {
-      errors.push('El estado es requerido');
-    } else if (!this.validStatuses.includes(ticket.status)) {
+    if (ticket.status && !this.validStatuses.includes(ticket.status)) {
       errors.push('Estado invalido');
     }
 
@@ -440,76 +262,58 @@ export class TicketService {
     };
   }
 
-  private buildNewTicket(ticketData: TicketCreateInput): Ticket {
-    const nextId = this.getNextId();
-    const currentDate = this.getCurrentDate();
-    const currentDateTime = this.getCurrentDateTime();
+  private normalizeTicket(ticket: Partial<Ticket> | null | undefined): Ticket {
+    const apiTicket = ticket as (Partial<Ticket> & { id_tecnico?: number | null }) | null | undefined;
 
     return {
-      id: nextId,
-      asunto: ticketData.asunto.trim(),
-      usuario: ticketData.usuario?.trim() || 'Usuario del sistema',
-      fi: currentDate,
-      fc: '-',
-      status: 'por-cerrar',
-      area: ticketData.area.trim(),
-      tipoServicio: ticketData.tipoServicio.trim(),
-      requerimiento: ticketData.requerimiento.trim(),
-      prioridad: ticketData.prioridad,
-      descripcion: ticketData.descripcion?.trim() || '',
-      documento: ticketData.documento ?? null,
-      historial: [
-        {
-          fecha: currentDateTime,
-          accion: 'APERTURA',
-          mensaje: 'Se abrio el ticket.',
-        },
-      ],
-      atencion: null,
-      tecnico: ticketData.tecnico ?? null,
-      nro: ticketData.nro ?? `TCK-${String(nextId).padStart(4, '0')}`,
-    };
-  }
-
-  private normalizeTicket(ticket: Partial<Ticket>): Ticket {
-    return {
-      id: ticket.id ?? 0,
-      asunto: ticket.asunto ?? '',
-      usuario: ticket.usuario ?? 'Usuario del sistema',
-      fi: ticket.fi ?? '',
-      fc: ticket.fc ?? '-',
-      status: this.validStatuses.includes(ticket.status as TicketStatus)
-        ? (ticket.status as TicketStatus)
+      id: ticket?.id ?? 0,
+      asunto: ticket?.asunto ?? '',
+      usuario: ticket?.usuario ?? 'Usuario del sistema',
+      fi: this.formatApiDate(ticket?.fi),
+      fc: this.formatApiDate(ticket?.fc) || '-',
+      status: this.validStatuses.includes(ticket?.status as TicketStatus)
+        ? (ticket?.status as TicketStatus)
         : 'por-cerrar',
-      area: ticket.area ?? '',
-      tipoServicio: ticket.tipoServicio ?? '',
-      requerimiento: ticket.requerimiento ?? '',
-      prioridad: this.validPriorities.includes(ticket.prioridad as TicketPriority)
-        ? (ticket.prioridad as TicketPriority)
+      area: ticket?.area ?? '',
+      tipoServicio: ticket?.tipoServicio ?? '',
+      requerimiento: ticket?.requerimiento ?? '',
+      prioridad: this.validPriorities.includes(ticket?.prioridad as TicketPriority)
+        ? (ticket?.prioridad as TicketPriority)
         : 'media',
-      descripcion: ticket.descripcion ?? '',
-      documento: ticket.documento ?? null,
-      historial: ticket.historial ?? [],
-      atencion: ticket.atencion ?? null,
-      tecnico: ticket.tecnico ?? null,
-      nro: ticket.nro ?? null,
+      descripcion: ticket?.descripcion ?? '',
+      documento: ticket?.documento ?? null,
+      historial: ticket?.historial ?? [],
+      atencion: ticket?.atencion ?? null,
+      tecnico: ticket?.tecnico ?? null,
+      idTecnico: apiTicket?.idTecnico ?? apiTicket?.id_tecnico ?? null,
+      nro: ticket?.nro ?? null,
     };
   }
 
-  private getNextId(): number {
-    const tickets = this.getAllTickets();
-    return tickets.length > 0 ? Math.max(...tickets.map((ticket) => ticket.id)) + 1 : 1;
-  }
+  private sortTickets(
+    tickets: Ticket[],
+    sortBy: TicketFilters['sortBy'],
+    sortDirection: TicketFilters['sortDirection'] = 'desc',
+  ): Ticket[] {
+    if (!sortBy) {
+      return tickets;
+    }
 
-  private getStatusAction(status: TicketStatus): string {
-    const actions: Record<TicketStatus, string> = {
-      'por-cerrar': 'APERTURA',
-      rechazados: 'RECHAZO',
-      cerrados: 'CIERRE',
-      eliminados: 'ELIMINACION',
-    };
+    const direction = sortDirection === 'asc' ? 1 : -1;
+    return [...tickets].sort((left, right) => {
+      if (sortBy === 'fecha') {
+        return (this.parseDate(left.fi) - this.parseDate(right.fi)) * direction;
+      }
 
-    return actions[status];
+      if (sortBy === 'prioridad') {
+        return (
+          (this.getPriorityRank(left.prioridad) -
+            this.getPriorityRank(right.prioridad)) * direction
+        );
+      }
+
+      return left.status.localeCompare(right.status) * direction;
+    });
   }
 
   private getPriorityRank(priority: TicketPriority): number {
@@ -523,53 +327,29 @@ export class TicketService {
     return ranks[priority];
   }
 
-  private parseDateFromString(dateStr: string): Date | null {
-    if (!dateStr || dateStr === '-') {
-      return null;
+  private parseDate(value: string): number {
+    if (!value || value === '-') {
+      return 0;
     }
 
-    const parts = dateStr.split('/');
-    if (parts.length !== 3) {
-      return null;
-    }
-
-    return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
   }
 
-  private parseFilterDate(
-    dateStr: string,
-    boundary: 'start' | 'end',
-  ): Date | null {
-    const parts = dateStr.split('-');
-    if (parts.length !== 3) {
-      return null;
+  private formatApiDate(value: unknown): string {
+    if (!value) {
+      return '';
     }
 
-    const [year, month, day] = parts.map(Number);
-    if (!year || !month || !day) {
-      return null;
+    const date = new Date(String(value));
+    if (Number.isNaN(date.getTime())) {
+      return String(value);
     }
 
-    return boundary === 'start'
-      ? new Date(year, month - 1, day, 0, 0, 0, 0)
-      : new Date(year, month - 1, day, 23, 59, 59, 999);
-  }
-
-  private getCurrentDate(): string {
-    return new Date().toLocaleDateString('es-PE', {
+    return date.toLocaleDateString('es-PE', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
-    });
-  }
-
-  private getCurrentDateTime(): string {
-    return new Date().toLocaleString('es-PE', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
     });
   }
 }

@@ -1,4 +1,4 @@
-import { DestroyRef, Component, inject } from '@angular/core';
+import { ChangeDetectorRef, DestroyRef, Component, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
@@ -25,7 +25,7 @@ import { NotificationService } from '../../core/services/notification';
   templateUrl: './layout.html',
   styleUrls: ['./layout.css'],
 })
-export class LayoutComponent {
+export class LayoutComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private dismissToastTimeout: ReturnType<typeof setTimeout> | null = null;
   readonly navItems = [
@@ -48,11 +48,13 @@ export class LayoutComponent {
 
   showNotifications = false;
   toastNotification: AppNotification | null = null;
+  currentNotifications: AppNotification[] = [];
 
   constructor(
     private auth: AuthService,
     private notifications: NotificationService,
     private router: Router,
+    private changeDetector: ChangeDetectorRef,
   ) {
     this.notifications.createdNotification$
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -63,6 +65,10 @@ export class LayoutComponent {
 
         this.showToast(notification);
       });
+  }
+
+  ngOnInit(): void {
+    this.loadNotifications();
   }
 
   get currentUserName(): string {
@@ -77,8 +83,8 @@ export class LayoutComponent {
     return this.auth.getRoleLabel(this.currentUserRole);
   }
 
-  get currentNotifications(): AppNotification[] {
-    return this.notifications.getNotificationsForUser(this.currentUserName);
+  get currentUserId(): number | null {
+    return this.auth.getCurrentUserId();
   }
 
   get unreadNotifications(): number {
@@ -91,11 +97,17 @@ export class LayoutComponent {
 
   toggleNotifications(): void {
     this.showNotifications = !this.showNotifications;
+    this.loadNotifications();
   }
 
   markNotificationsAsRead(): void {
     this.notifications.markAllAsRead(this.currentUserName);
+    this.currentNotifications = this.currentNotifications.map((notification) => ({
+      ...notification,
+      read: true,
+    }));
     this.showNotifications = false;
+    this.changeDetector.detectChanges();
   }
 
   dismissToast(): void {
@@ -123,5 +135,14 @@ export class LayoutComponent {
       this.toastNotification = null;
       this.dismissToastTimeout = null;
     }, 5000);
+  }
+
+  private loadNotifications(): void {
+    this.notifications
+      .getNotificationsForUser(this.currentUserId, this.currentUserName)
+      .subscribe((notifications) => {
+        this.currentNotifications = notifications;
+        this.changeDetector.detectChanges();
+      });
   }
 }

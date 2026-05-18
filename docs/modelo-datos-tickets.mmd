@@ -1,0 +1,103 @@
+erDiagram
+    ROLES ||--o{ USUARIOS : tiene
+    USUARIOS ||--o{ TICKETS : solicita
+    USUARIOS ||--o{ TICKETS : atiende
+    USUARIOS ||--o{ HISTORIAL_TICKET : registra
+    USUARIOS ||--o{ ATENCIONES_TICKET : registra
+    USUARIOS ||--o{ NOTIFICACIONES : recibe
+    ESTADOS_TICKET ||--o{ TICKETS : clasifica
+    PRIORIDADES_TICKET ||--o{ TICKETS : prioriza
+    AREAS ||--o{ TICKETS : pertenece
+    TIPOS_SERVICIO ||--o{ TICKETS : categoriza
+    TICKETS ||--o{ HISTORIAL_TICKET : contiene
+    TICKETS ||--o{ ATENCIONES_TICKET : contiene
+
+    ROLES {
+        int id_rol PK
+        varchar codigo UK
+        varchar nombre
+        varchar descripcion
+        bit activo
+    }
+
+    USUARIOS {
+        int id_usuario PK
+        int id_rol FK
+        varchar email UK
+        varchar nombre
+        varchar password_hash
+        bit activo
+        datetime fecha_creacion
+    }
+
+    ESTADOS_TICKET {
+        int id_estado PK
+        varchar codigo UK
+        varchar nombre
+        int orden
+    }
+
+    PRIORIDADES_TICKET {
+        int id_prioridad PK
+        varchar codigo UK
+        varchar nombre
+        int nivel
+    }
+
+    AREAS {
+        int id_area PK
+        varchar nombre UK
+        bit activo
+    }
+
+    TIPOS_SERVICIO {
+        int id_tipo_servicio PK
+        varchar nombre UK
+        bit activo
+    }
+
+    TICKETS {
+        int id_ticket PK
+        varchar nro
+        varchar asunto
+        int id_usuario_solicitante FK
+        int id_area FK
+        int id_tipo_servicio FK
+        int id_prioridad FK
+        int id_estado FK
+        int id_tecnico_asignado FK
+        varchar requerimiento
+        varchar descripcion
+        varchar documento_url
+        datetime fecha_inicio
+        datetime fecha_cierre
+        bit activo
+    }
+
+    HISTORIAL_TICKET {
+        int id_historial PK
+        int id_ticket FK
+        int id_usuario FK
+        varchar accion
+        varchar mensaje
+        datetime fecha
+    }
+
+    ATENCIONES_TICKET {
+        int id_atencion PK
+        int id_ticket FK
+        int id_usuario FK
+        varchar descripcion
+        varchar documento_url
+        datetime fecha
+    }
+
+    NOTIFICACIONES {
+        int id_notificacion PK
+        int id_usuario FK
+        varchar titulo
+        varchar mensaje
+        bit leido
+        datetime fecha_creacion
+    }
+

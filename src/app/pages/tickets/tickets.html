@@ -102,62 +102,117 @@
       <div class="form-header">
         <div>
           <h2>Nuevo ticket</h2>
-          <p>Esta version ya usa la estructura real del sistema.</p>
+          <p>Completa los datos requeridos para registrar la solicitud.</p>
         </div>
       </div>
 
-      <div class="ticket-form-grid">
-        <mat-form-field appearance="outline">
-          <mat-label>Asunto</mat-label>
-          <input matInput [(ngModel)]="asunto" />
-        </mat-form-field>
+      <form
+        #ticketCreateForm="ngForm"
+        class="ticket-create-form"
+        (ngSubmit)="crearTicket(ticketCreateForm)"
+        novalidate
+      >
+        @if (formErrorMessage) {
+          <div class="form-error" role="alert" aria-live="assertive">
+            <mat-icon>error</mat-icon>
+            <span>{{ formErrorMessage }}</span>
+          </div>
+        }
 
-        <mat-form-field appearance="outline">
-          <mat-label>Area</mat-label>
-          <mat-select [(ngModel)]="area">
-            @for (item of areas; track item) {
-              <mat-option [value]="item">{{ item }}</mat-option>
+        <div class="ticket-form-grid">
+          <mat-form-field
+            appearance="outline"
+            [class.field-invalid]="formSubmitted && !asunto.trim()"
+          >
+            <mat-label>Asunto <span class="required-mark">*</span></mat-label>
+            <input
+              matInput
+              name="asunto"
+              [(ngModel)]="asunto"
+              (ngModelChange)="formErrorMessage = ''"
+              required
+              aria-required="true"
+            />
+            @if (formSubmitted && !asunto.trim()) {
+              <mat-error>El asunto es requerido.</mat-error>
             }
-          </mat-select>
-        </mat-form-field>
+          </mat-form-field>
 
-        <mat-form-field appearance="outline">
-          <mat-label>Categoria de atencion</mat-label>
-          <mat-select [(ngModel)]="tipoServicio">
-            @for (item of serviceTypes; track item) {
-              <mat-option [value]="item">{{ item }}</mat-option>
+          <mat-form-field appearance="outline">
+            <mat-label>Area <span class="required-mark">*</span></mat-label>
+            <mat-select name="area" [(ngModel)]="area" required aria-required="true">
+              @for (item of areas; track item) {
+                <mat-option [value]="item">{{ item }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Categoria de atencion <span class="required-mark">*</span></mat-label>
+            <mat-select
+              name="tipoServicio"
+              [(ngModel)]="tipoServicio"
+              required
+              aria-required="true"
+            >
+              @for (item of serviceTypes; track item) {
+                <mat-option [value]="item">{{ item }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field
+            appearance="outline"
+            [class.field-invalid]="formSubmitted && !requerimiento.trim()"
+          >
+            <mat-label>Requerimiento <span class="required-mark">*</span></mat-label>
+            <input
+              matInput
+              name="requerimiento"
+              [(ngModel)]="requerimiento"
+              (ngModelChange)="formErrorMessage = ''"
+              required
+              aria-required="true"
+            />
+            @if (formSubmitted && !requerimiento.trim()) {
+              <mat-error>El requerimiento es requerido.</mat-error>
             }
-          </mat-select>
-        </mat-form-field>
+          </mat-form-field>
 
-        <mat-form-field appearance="outline">
-          <mat-label>Requerimiento</mat-label>
-          <input matInput [(ngModel)]="requerimiento" />
-        </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Prioridad <span class="required-mark">*</span></mat-label>
+            <mat-select
+              name="prioridad"
+              [(ngModel)]="prioridad"
+              required
+              aria-required="true"
+            >
+              @for (item of priorities; track item) {
+                <mat-option [value]="item">{{ getPriorityLabel(item) }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
 
-        <mat-form-field appearance="outline">
-          <mat-label>Prioridad</mat-label>
-          <mat-select [(ngModel)]="prioridad">
-            @for (item of priorities; track item) {
-              <mat-option [value]="item">{{ getPriorityLabel(item) }}</mat-option>
-            }
-          </mat-select>
-        </mat-form-field>
+          <mat-form-field appearance="outline" class="form-span-2">
+            <mat-label>Descripcion</mat-label>
+            <textarea
+              matInput
+              rows="4"
+              name="descripcion"
+              [(ngModel)]="descripcion"
+            ></textarea>
+          </mat-form-field>
+        </div>
 
-        <mat-form-field appearance="outline" class="form-span-2">
-          <mat-label>Descripcion</mat-label>
-          <textarea matInput rows="4" [(ngModel)]="descripcion"></textarea>
-        </mat-form-field>
-      </div>
-
-      <div class="form-actions">
-        <button mat-stroked-button type="button" (click)="toggleCreateForm()">
-          Cancelar
-        </button>
-        <button mat-flat-button type="button" (click)="crearTicket()">
-          Guardar ticket
-        </button>
-      </div>
+        <div class="form-actions">
+          <button mat-stroked-button type="button" (click)="toggleCreateForm()" [disabled]="isCreatingTicket">
+            Cancelar
+          </button>
+          <button mat-flat-button type="submit" [disabled]="isCreatingTicket">
+            {{ isCreatingTicket ? 'Guardando...' : 'Guardar ticket' }}
+          </button>
+        </div>
+      </form>
     </mat-card>
   }
 
@@ -339,7 +394,7 @@
         <div class="detail-empty">
           <mat-icon>preview</mat-icon>
           <h3>Selecciona un ticket</h3>
-          <p>Desde aqui podremos seguir agregando acciones y modales del prototipo.</p>
+          <p>El detalle se mostrara en este panel.</p>
         </div>
       }
     </mat-card>

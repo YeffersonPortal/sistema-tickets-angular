@@ -4,8 +4,9 @@
 }
 
 .tickets-hero {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(260px, 0.75fr) minmax(0, 1.45fr);
+  align-items: start;
   gap: 24px;
   padding: 28px;
   border-radius: 24px;
@@ -40,14 +41,19 @@
 }
 
 .hero-actions {
-  width: min(100%, 340px);
+  width: 100%;
   display: grid;
-  align-content: center;
+  align-items: start;
   gap: 14px;
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
 }
 
 .search-field {
   width: 100%;
+}
+
+.hero-actions button {
+  min-height: 56px;
 }
 
 .status-strip {
@@ -119,6 +125,34 @@
 .section-heading p {
   margin: 6px 0 0;
   color: #64748b;
+}
+
+.form-error {
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: 1px solid #fecdd3;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.form-error mat-icon {
+  width: 20px;
+  height: 20px;
+  font-size: 20px;
+}
+
+.required-mark {
+  color: #dc2626;
+}
+
+.field-invalid {
+  --mdc-outlined-text-field-outline-color: #dc2626;
+  --mdc-outlined-text-field-hover-outline-color: #dc2626;
+  --mdc-outlined-text-field-focus-outline-color: #dc2626;
 }
 
 .ticket-form-grid {
@@ -383,6 +417,18 @@
 }
 
 @media (max-width: 1080px) {
+  .tickets-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-copy {
+    max-width: none;
+  }
+
+  .hero-actions {
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+
   .tickets-content {
     grid-template-columns: 1fr;
   }
@@ -395,10 +441,13 @@
 @media (max-width: 768px) {
   .tickets-hero {
     padding: 22px;
-    flex-direction: column;
   }
 
   .hero-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-actions button {
     width: 100%;
   }
 

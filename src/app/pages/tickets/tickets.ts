@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { ChangeDetectorRef, Component } from '@angular/core';
+import { FormsModule, NgForm } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
@@ -11,6 +11,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatSelectModule } from '@angular/material/select';
+import { finalize } from 'rxjs';
 import {
   TICKET_AREAS,
   TICKET_SERVICE_TYPES,
@@ -79,11 +80,21 @@ export class TicketsComponent {
   attentionSavedMessage = '';
   showCreateForm = false;
   successMessage = '';
+  formSubmitted = false;
+  formErrorMessage = '';
+  isCreatingTicket = false;
   tickets: Ticket[] = [];
+  statusCounts: Record<TicketStatus, number> = {
+    'por-cerrar': 0,
+    rechazados: 0,
+    cerrados: 0,
+    eliminados: 0,
+  };
 
   constructor(
     private auth: AuthService,
     private ticketService: TicketService,
+    private changeDetector: ChangeDetectorRef,
   ) {}
 
   ngOnInit() {
@@ -91,40 +102,51 @@ export class TicketsComponent {
   }
 
   cargarTickets() {
-    const filteredTickets = this.ticketService.filterTickets({
-      status: this.selectedStatus,
+    const baseFilters = {
+      usuario: this.currentRole === 'colaborador' ? this.currentUserId ?? undefined : undefined,
       searchTerm: this.searchTerm,
       prioridad: this.selectedPriority || undefined,
       fechaDesde: this.formatDateFilter(this.fechaDesde),
       fechaHasta: this.formatDateFilter(this.fechaHasta),
       sortBy: this.sortBy,
       sortDirection: this.sortDirection,
+    };
+
+    this.ticketService.filterTickets(baseFilters).subscribe((filteredTickets) => {
+      const visibleTickets = this.filterTicketsByCurrentRole(filteredTickets);
+      this.statusCounts = this.buildStatusCounts(visibleTickets);
+      this.tickets = visibleTickets.filter((ticket) => ticket.status === this.selectedStatus);
+      this.changeDetector.detectChanges();
     });
 
-    this.tickets =
-      this.currentRole === 'colaborador'
-        ? filteredTickets.filter((ticket) => ticket.usuario === this.currentUserName)
-        : filteredTickets;
-
     if (this.selectedTicket) {
-      this.selectedTicket = this.ticketService.getTicketById(this.selectedTicket.id);
-      this.attentionDescription = this.selectedTicket?.atencion?.descripcion ?? '';
+      this.ticketService.getTicketById(this.selectedTicket.id).subscribe((ticket) => {
+        this.selectedTicket = ticket;
+        this.attentionDescription = ticket?.atencion?.descripcion ?? '';
+        this.changeDetector.detectChanges();
+      });
     }
   }
 
-  crearTicket() {
-    this.successMessage = '';
-
-    if (
-      !this.asunto.trim() ||
-      !this.area.trim() ||
-      !this.tipoServicio.trim() ||
-      !this.requerimiento.trim()
-    ) {
+  crearTicket(form?: NgForm) {
+    if (this.isCreatingTicket) {
       return;
     }
 
-    const createdTicket = this.ticketService.createTicket({
+    this.successMessage = '';
+    this.formErrorMessage = '';
+    this.formSubmitted = true;
+    form?.control.markAllAsTouched();
+
+    const missingField = this.getFirstMissingCreateField();
+    if (missingField) {
+      this.formErrorMessage = `Completa el campo ${missingField} para crear el ticket.`;
+      return;
+    }
+
+    this.isCreatingTicket = true;
+
+    this.ticketService.createTicket({
       asunto: this.asunto,
       area: this.area,
       tipoServicio: this.tipoServicio,
@@ -132,19 +154,30 @@ export class TicketsComponent {
       prioridad: this.prioridad,
       descripcion: this.descripcion,
       usuario: this.currentUserName,
-    });
+    }, this.currentUserId)
+      .pipe(finalize(() => {
+        this.isCreatingTicket = false;
+        this.changeDetector.detectChanges();
+      }))
+      .subscribe({
+        next: (createdTicket) => {
+          this.successMessage = `Ticket ${createdTicket.nro || `TCK-${createdTicket.id}`} registrado correctamente.`;
 
-    this.successMessage = `Ticket ${createdTicket.nro || `TCK-${createdTicket.id}`} registrado correctamente.`;
+          this.asunto = '';
+          this.area = this.areas[0];
+          this.tipoServicio = this.serviceTypes[0];
+          this.requerimiento = '';
+          this.prioridad = 'media';
+          this.descripcion = '';
+          this.showCreateForm = false;
+          this.formSubmitted = false;
 
-    this.asunto = '';
-    this.area = this.areas[0];
-    this.tipoServicio = this.serviceTypes[0];
-    this.requerimiento = '';
-    this.prioridad = 'media';
-    this.descripcion = '';
-    this.showCreateForm = false;
-
-    this.cargarTickets();
+          this.cargarTickets();
+        },
+        error: () => {
+          this.formErrorMessage = 'No se pudo guardar el ticket. Revisa la conexion o intenta nuevamente.';
+        },
+      });
   }
 
   setStatus(status: TicketStatus): void {
@@ -171,13 +204,23 @@ export class TicketsComponent {
   }
 
   toggleCreateForm(): void {
+    if (this.isCreatingTicket) {
+      return;
+    }
+
     this.successMessage = '';
+    this.formErrorMessage = '';
+    this.formSubmitted = false;
     this.showCreateForm = !this.showCreateForm;
   }
 
   openDetail(ticket: Ticket): void {
     this.selectedTicket = ticket;
-    this.attentionDescription = ticket.atencion?.descripcion ?? '';
+    this.ticketService.getTicketById(ticket.id).subscribe((detail) => {
+      this.selectedTicket = detail ?? ticket;
+      this.attentionDescription = this.selectedTicket.atencion?.descripcion ?? '';
+      this.changeDetector.detectChanges();
+    });
     this.attentionSavedMessage = '';
   }
 
@@ -188,8 +231,10 @@ export class TicketsComponent {
   }
 
   changeStatus(ticket: Ticket, status: TicketStatus): void {
-    this.ticketService.changeTicketStatus(ticket.id, status);
-    this.cargarTickets();
+    this.ticketService.changeTicketStatus(ticket.id, status, this.currentUserId).subscribe(() => {
+      this.cargarTickets();
+      this.changeDetector.detectChanges();
+    });
   }
 
   saveAttention(): void {
@@ -200,24 +245,16 @@ export class TicketsComponent {
     this.ticketService.addAttentionDescription(
       this.selectedTicket.id,
       this.attentionDescription,
-    );
-    this.ticketService.addHistoryEvent(
-      this.selectedTicket.id,
-      'SEGUIMIENTO',
-      'Se registro un avance en la atencion del ticket.',
-    );
-    this.attentionSavedMessage = 'Avance registrado correctamente.';
-    this.cargarTickets();
+      this.currentUserId,
+    ).subscribe(() => {
+      this.attentionSavedMessage = 'Avance registrado correctamente.';
+      this.cargarTickets();
+      this.changeDetector.detectChanges();
+    });
   }
 
   getCount(status: TicketStatus): number {
-    if (this.currentRole === 'colaborador') {
-      return this.ticketService
-        .getTicketsByStatus(status)
-        .filter((ticket) => ticket.usuario === this.currentUserName).length;
-    }
-
-    return this.ticketService.countByStatus()[status];
+    return this.statusCounts[status];
   }
 
   getStatusLabel(status: TicketStatus): string {
@@ -240,6 +277,10 @@ export class TicketsComponent {
     return this.auth.getCurrentUser()?.nombre || 'Usuario';
   }
 
+  get currentUserId(): number | null {
+    return this.auth.getCurrentUserId();
+  }
+
   get canCreateTickets(): boolean {
     return true;
   }
@@ -257,7 +298,7 @@ export class TicketsComponent {
   get pageDescription(): string {
     return this.currentRole === 'colaborador'
       ? 'Registra incidencias y revisa el estado de tus solicitudes desde una sola vista.'
-      : 'Filtra, revisa y actualiza tickets desde una sola vista, con una base de datos local ya preparada para el siguiente paso del sistema.';
+      : 'Gestiona solicitudes, revisa detalles y actualiza el estado de atencion.';
   }
 
   private formatDateFilter(date: Date | null): string | undefined {
@@ -269,5 +310,48 @@ export class TicketsComponent {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  }
+
+  private getFirstMissingCreateField(): string {
+    if (!this.asunto.trim()) {
+      return 'asunto';
+    }
+
+    if (!this.area.trim()) {
+      return 'area';
+    }
+
+    if (!this.tipoServicio.trim()) {
+      return 'categoria de atencion';
+    }
+
+    if (!this.requerimiento.trim()) {
+      return 'requerimiento';
+    }
+
+    return '';
+  }
+
+  private filterTicketsByCurrentRole(tickets: Ticket[]): Ticket[] {
+    if (this.currentRole === 'tecnico') {
+      return tickets.filter((ticket) => ticket.idTecnico === this.currentUserId);
+    }
+
+    return tickets;
+  }
+
+  private buildStatusCounts(tickets: Ticket[]): Record<TicketStatus, number> {
+    return tickets.reduce<Record<TicketStatus, number>>(
+      (counts, ticket) => {
+        counts[ticket.status] += 1;
+        return counts;
+      },
+      {
+        'por-cerrar': 0,
+        rechazados: 0,
+        cerrados: 0,
+        eliminados: 0,
+      },
+    );
   }
 }

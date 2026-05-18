@@ -11,8 +11,9 @@
 
 .monitor-hero {
   padding: 28px;
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(260px, 0.75fr) minmax(0, 1.45fr);
+  align-items: start;
   gap: 24px;
   background:
     radial-gradient(circle at top right, rgba(14, 165, 233, 0.14), transparent 28%),
@@ -45,10 +46,15 @@
 }
 
 .hero-actions {
-  width: min(100%, 360px);
+  width: 100%;
   display: grid;
-  align-content: center;
+  align-items: start;
   gap: 14px;
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
+}
+
+.hero-actions button {
+  min-height: 56px;
 }
 
 .status-strip {
@@ -260,6 +266,18 @@
 }
 
 @media (max-width: 1180px) {
+  .monitor-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-copy {
+    max-width: none;
+  }
+
+  .hero-actions {
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+
   .monitor-grid {
     grid-template-columns: 1fr;
   }
@@ -277,13 +295,16 @@
 @media (max-width: 768px) {
   .monitor-hero {
     padding: 22px;
-    flex-direction: column;
   }
 
   .hero-actions,
   .assign-row {
     width: 100%;
     grid-template-columns: 1fr;
+  }
+
+  .hero-actions button {
+    width: 100%;
   }
 
   .detail-grid {

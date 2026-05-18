@@ -1,9 +1,14 @@
+import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
+import { map, Observable, tap } from 'rxjs';
+import { API_BASE_URL } from '../api/api-config';
+import { ApiResponse } from '../api/api-response';
 import { StorageService } from './storage';
 
 export type UserRole = 'jefe' | 'tecnico' | 'colaborador';
 
 export interface AuthUser {
+  id?: number;
   email: string;
   nombre: string;
   rol: UserRole;
@@ -14,6 +19,14 @@ export interface DemoUser {
   email: string;
   nombre: string;
   rol: UserRole;
+}
+
+interface LoginApiUser {
+  id: number;
+  email: string;
+  nombre: string;
+  rol: UserRole;
+  rol_nombre?: string;
 }
 
 @Injectable({
@@ -39,7 +52,10 @@ export class AuthService {
     },
   ];
 
-  constructor(private storage: StorageService) {}
+  constructor(
+    private http: HttpClient,
+    private storage: StorageService,
+  ) {}
 
   getDemoUsers(): DemoUser[] {
     return [...this.demoUsers];
@@ -61,6 +77,10 @@ export class AuthService {
     return storedUser as AuthUser;
   }
 
+  getCurrentUserId(): number | null {
+    return this.getCurrentUser()?.id ?? null;
+  }
+
   getCurrentRole(): UserRole | null {
     return this.getCurrentUser()?.rol ?? null;
   }
@@ -69,23 +89,30 @@ export class AuthService {
     return this.getCurrentUser() !== null;
   }
 
-  login(usuario: string): AuthUser {
+  login(usuario: string, password: string): Observable<AuthUser> {
     const normalizedEmail = usuario.trim().toLowerCase();
-    const account = this.demoUsers.find((item) => item.email === normalizedEmail);
 
-    if (!account) {
-      throw new Error('El usuario no existe en los accesos de prueba.');
-    }
+    return this.http
+      .post<ApiResponse<LoginApiUser>>(`${API_BASE_URL}/login`, {
+        email: normalizedEmail,
+        password,
+      })
+      .pipe(
+        map((response) => {
+          if (!response.ok || !response.data) {
+            throw new Error(response.message || 'No se pudo iniciar sesion.');
+          }
 
-    const user: AuthUser = {
-      email: account.email,
-      nombre: account.nombre,
-      rol: account.rol,
-      usuario: account.nombre,
-    };
-
-    this.storage.setItem(this.userKey, user);
-    return user;
+          return {
+            id: response.data.id,
+            email: response.data.email,
+            nombre: response.data.nombre,
+            rol: response.data.rol,
+            usuario: response.data.nombre,
+          };
+        }),
+        tap((user) => this.storage.setItem(this.userKey, user)),
+      );
   }
 
   logout(): void {

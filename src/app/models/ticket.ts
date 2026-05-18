@@ -35,12 +35,13 @@ export interface Ticket {
   historial: TicketHistoryEvent[];
   atencion: TicketAttention | null;
   tecnico: string | null;
+  idTecnico: number | null;
   nro: string | null;
 }
 
 export interface TicketFilters {
   status?: TicketStatus;
-  usuario?: string;
+  usuario?: string | number;
   prioridad?: TicketPriority;
   area?: string;
   searchTerm?: string;
