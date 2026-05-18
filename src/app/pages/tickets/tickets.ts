@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core'; // <--- 1. Importamos ChangeDetectorRef
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core'; 
 import { FormsModule } from '@angular/forms';
 
 import { MatButtonModule } from '@angular/material/button';
@@ -54,7 +54,7 @@ export class TicketsComponent implements OnInit {
   // =========================
   // CATÁLOGOS
   // =========================
-
+  
   readonly statuses: { key: TicketStatus; label: string }[] = [
     { key: 'por-cerrar', label: 'Tickets por cerrar' },
     { key: 'rechazados', label: 'Tickets rechazados' },
@@ -82,6 +82,9 @@ export class TicketsComponent implements OnInit {
   requerimiento = '';
   prioridad: TicketPriority = 'media';
   descripcion = '';
+  // --- NUEVAS VARIABLES PARA EL ARCHIVO ---
+  selectedFile: File | null = null;
+  fileName = '';
 
   // =========================
   // FILTROS
@@ -179,6 +182,21 @@ export class TicketsComponent implements OnInit {
     this.cdr.detectChanges();
 
     try {
+      let documentoUrlFinal = null;
+
+      // ✨ LA MAGIA DE S3 COMIENZA AQUÍ ✨
+      if (this.selectedFile) {
+        // 1. Pedimos el pase VIP a AWS
+        const s3Data = await this.ticketService.getUploadUrl(this.selectedFile.name, this.selectedFile.type);
+        
+        // 2. Subimos el archivo directamente a Amazon S3
+        await this.ticketService.uploadFileToS3(s3Data.uploadUrl, this.selectedFile);
+
+        // 3. Guardamos el enlace público/privado
+        documentoUrlFinal = s3Data.fileUrl;
+      }
+
+      // 4. Creamos el ticket en la Base de Datos (solo con texto y el enlace)
       const createdTicket = await this.ticketService.createTicket({
         asunto: this.asunto,
         area: this.area,
@@ -186,6 +204,7 @@ export class TicketsComponent implements OnInit {
         requerimiento: this.requerimiento,
         prioridad: this.prioridad,
         descripcion: this.descripcion,
+        documento: documentoUrlFinal, // <--- Enviamos la URL generada en S3
         usuario: this.currentUserName,
         usuarioId: this.auth.getCurrentUser()?.usuario,
       });
@@ -199,13 +218,15 @@ export class TicketsComponent implements OnInit {
       this.requerimiento = '';
       this.prioridad = 'media';
       this.descripcion = '';
+      this.selectedFile = null; // Limpiar archivo
+      this.fileName = '';       // Limpiar nombre
       this.showCreateForm = false;
 
       await this.cargarTickets();
 
     } catch (error) {
-      console.error('Error creando ticket:', error);
-      alert('No se pudo crear el ticket en AWS');
+      console.error('Error creando ticket o subiendo archivo:', error);
+      alert('Error: No se pudo crear el ticket o subir el documento.');
     } finally {
       this.isSubmitting = false;
       this.cdr.detectChanges();
@@ -264,6 +285,15 @@ export class TicketsComponent implements OnInit {
     this.successMessage = '';
     this.showCreateForm = !this.showCreateForm;
     this.cdr.detectChanges();
+  }
+
+  onFileSelected(event: any): void {
+    const file = event.target.files[0];
+    if (file) {
+      this.selectedFile = file;
+      this.fileName = file.name;
+      this.cdr.detectChanges();
+    }
   }
 
   // =========================

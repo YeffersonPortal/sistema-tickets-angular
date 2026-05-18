@@ -198,6 +198,17 @@
           <p>{{ selectedTicket.descripcion || 'Sin descripcion registrada.' }}</p>
         </div>
 
+        @if (selectedTicket.documento) {
+          <div class="detail-block" style="margin-top: 10px;">
+            <span class="detail-label">Documento adjunto</span>
+            <div style="margin-top: 5px;">
+              <a [href]="selectedTicket.documento" target="_blank" mat-stroked-button color="primary">
+                <mat-icon>open_in_new</mat-icon> Ver archivo
+              </a>
+            </div>
+          </div>
+        }
+
         <div class="detail-block">
           <span class="detail-label">Reasignar ticket</span>
           <div class="assign-row">
@@ -236,6 +247,7 @@
             </div>
           }
         </div>
+        
       } @else {
         <div class="empty-state">
           <mat-icon>preview</mat-icon>

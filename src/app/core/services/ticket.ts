@@ -71,7 +71,30 @@ export class TicketService {
     
     return response.data;
   }
+// =========================
+  // ARCHIVOS Y S3
+  // =========================
 
+  // 1. Pedir el Pase VIP a tu nueva Lambda
+  async getUploadUrl(fileName: string, fileType: string): Promise<{uploadUrl: string, fileUrl: string}> {
+    const body = { fileName, fileType };
+    // Llamamos a la ruta /upload-url que creaste en API Gateway
+    const response = await firstValueFrom(
+      this.http.post<any>(`${this.apiUrl}/upload-url`, body)
+    );
+    return response; 
+  }
+
+  // 2. Subir el archivo físicamente a Amazon S3
+  async uploadFileToS3(uploadUrl: string, file: File): Promise<void> {
+    await firstValueFrom(
+      this.http.put(uploadUrl, file, {
+        headers: {
+          'Content-Type': file.type
+        }
+      })
+    );
+  }
   // 5. CAMBIAR ESTADO
   async changeTicketStatus(id: number, newStatus: string, usuarioId: any, mensaje = ''): Promise<void> {
     const body = {

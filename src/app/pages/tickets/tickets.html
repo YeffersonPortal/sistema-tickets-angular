@@ -148,14 +148,29 @@
           <mat-label>Descripcion</mat-label>
           <textarea matInput rows="4" [(ngModel)]="descripcion"></textarea>
         </mat-form-field>
+        
+        <div class="form-span-2 file-upload-container" style="margin-bottom: 15px;">
+          <button mat-stroked-button color="primary" type="button" (click)="fileInput.click()">
+            <mat-icon>attach_file</mat-icon> Adjuntar documento
+          </button>
+          <input hidden type="file" #fileInput (change)="onFileSelected($event)" accept=".pdf,.png,.jpg,.jpeg">
+          
+          @if (fileName) {
+            <span style="margin-left: 10px; color: #666;">
+              <mat-icon style="font-size: 16px; width: 16px; height: 16px; vertical-align: middle;">check_circle</mat-icon> 
+              {{ fileName }}
+            </span>
+          }
+        </div>
+
       </div>
 
       <div class="form-actions">
         <button mat-stroked-button type="button" (click)="toggleCreateForm()">
           Cancelar
         </button>
-        <button mat-flat-button type="button" (click)="crearTicket()">
-          Guardar ticket
+        <button mat-flat-button type="button" (click)="crearTicket()" [disabled]="isSubmitting">
+          {{ isSubmitting ? 'Guardando...' : 'Guardar ticket' }}
         </button>
       </div>
     </mat-card>
@@ -258,6 +273,17 @@
           <span class="detail-label">Descripcion</span>
           <p>{{ selectedTicket.descripcion || 'Sin descripcion registrada.' }}</p>
         </div>
+
+        @if (selectedTicket.documento) {
+          <div class="detail-block" style="margin-top: 10px;">
+            <span class="detail-label">Documento adjunto</span>
+            <div style="margin-top: 5px;">
+              <a [href]="selectedTicket.documento" target="_blank" mat-stroked-button color="primary">
+                <mat-icon>open_in_new</mat-icon> Ver archivo
+              </a>
+            </div>
+          </div>
+        }
 
         @if (canManageTickets) {
           <div class="detail-block">
